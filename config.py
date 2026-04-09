@@ -22,7 +22,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
-SYMBOLS_CACHE_PATH = os.path.join(DATA_DIR, "symbols_cache.json")
 
 
 def validate():
