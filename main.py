@@ -1,7 +1,7 @@
 import argparse
 import sys
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import config
 from src.utils.logger import setup_logger, timed
@@ -9,54 +9,36 @@ from src.utils.logger import setup_logger, timed
 logger = setup_logger("main")
 
 
-def get_fetcher():
-    if config.DATA_SOURCE == "yfinance":
-        from src.data.yfinance_fetcher import YfinanceFetcher
-        return YfinanceFetcher()
-    from src.data.vnstock_fetcher import VnstockFetcher
-    return VnstockFetcher()
-
-
 @timed
 def run_tracking_cycle():
-    from src.utils.market_hours import is_market_open, VN_TZ
-    from src.data.symbol_manager import get_all_symbols
+    from src.utils.market_hours import is_market_open
+    from src.data.cafef_fetcher import CafefFetcher
     from src.analysis.profit_calculator import calculate_profits, filter_by_volume, generate_summary
     from src.notifications.telegram_bot import TelegramNotifier
 
     logger.info("=== Starting tracking cycle ===")
 
-    # Check market hours
     if not is_market_open():
         logger.info("Market is closed, skipping cycle")
         return
 
-    # 1. Get symbols
-    symbols = get_all_symbols()
-    if not symbols:
-        logger.error("No symbols available, aborting cycle")
-        return
-    logger.info(f"Tracking {len(symbols)} symbols")
-
-    # 2. Fetch prices
-    now = datetime.now(VN_TZ)
-    today = now.strftime("%Y-%m-%d")
-    fetcher = get_fetcher()
-    price_df = fetcher.fetch_batch(symbols, start=today, end=today)
+    # 1. Fetch all prices (HOSE + HNX in 2 requests)
+    fetcher = CafefFetcher()
+    price_df = fetcher.fetch_all()
 
     if price_df.empty:
         logger.warning("No price data fetched")
         return
 
-    # 3. Calculate profits
+    # 2. Calculate profits & filter top volume
     price_df = calculate_profits(price_df)
     filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
 
     if filtered.empty:
-        logger.info("No symbols above volume threshold")
+        logger.info("No symbols with trading data")
         return
 
-    # 4. Send Telegram alerts
+    # 3. Send Telegram alerts
     messages = generate_summary(filtered)
     notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
     notifier.send_alert(messages)
@@ -66,37 +48,23 @@ def run_tracking_cycle():
 
 @timed
 def run_test_cycle():
-    from src.utils.market_hours import VN_TZ
-    from src.data.symbol_manager import get_all_symbols
+    from src.data.cafef_fetcher import CafefFetcher
     from src.analysis.profit_calculator import calculate_profits, filter_by_volume, generate_summary
     from src.notifications.telegram_bot import TelegramNotifier
 
     logger.info("=== Starting TEST cycle (no market hours check) ===")
 
-    symbols = get_all_symbols()
-    if not symbols:
-        logger.error("No symbols available, aborting")
-        return
-
-    logger.info(f"Tracking {len(symbols)} symbols")
-
-    now = datetime.now(VN_TZ)
-    today = now.strftime("%Y-%m-%d")
-    fetcher = get_fetcher()
-    price_df = fetcher.fetch_batch(symbols, start=today, end=today)
+    fetcher = CafefFetcher()
+    price_df = fetcher.fetch_all()
 
     if price_df.empty:
-        logger.warning("No price data fetched")
+        notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
+        notifier.send_message("[TEST] Khong co du lieu gia hom nay.")
+        logger.info("No data, sent test message")
         return
 
     price_df = calculate_profits(price_df)
     filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
-
-    if filtered.empty:
-        notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
-        notifier.send_message("[TEST] Khong co du lieu gia hom nay.")
-        logger.info("No symbols above threshold, sent test message")
-        return
 
     messages = generate_summary(filtered)
     messages[0] = "[TEST] " + messages[0]
@@ -108,25 +76,16 @@ def run_test_cycle():
 
 @timed
 def run_report():
-    from src.utils.market_hours import VN_TZ
-    from src.data.symbol_manager import get_all_symbols
-    from src.analysis.profit_calculator import calculate_profits, filter_profitable
+    from src.data.cafef_fetcher import CafefFetcher
+    from src.analysis.profit_calculator import calculate_profits, filter_by_volume
     from src.report.html_report import generate_html_report
     import webbrowser
     import os
 
     logger.info("=== Generating HTML report ===")
 
-    symbols = get_all_symbols()
-    if not symbols:
-        logger.error("No symbols available")
-        return
-
-    logger.info(f"Fetching data for {len(symbols)} symbols...")
-    now = datetime.now(VN_TZ)
-    today = now.strftime("%Y-%m-%d")
-    fetcher = get_fetcher()
-    price_df = fetcher.fetch_batch(symbols, start=today, end=today)
+    fetcher = CafefFetcher()
+    price_df = fetcher.fetch_all()
 
     if price_df.empty:
         logger.warning("No price data fetched")
@@ -138,7 +97,6 @@ def run_report():
     report_path = generate_html_report(price_df, filtered)
     logger.info(f"Report saved: {report_path}")
 
-    # Auto-open in browser
     webbrowser.open(f"file:///{os.path.abspath(report_path)}")
     print(f"\nReport: {report_path}")
 

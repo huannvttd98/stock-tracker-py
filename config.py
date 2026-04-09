@@ -8,18 +8,12 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# Data source
-DATA_SOURCE = os.getenv("DATA_SOURCE", "vnstock")
-
 # Filtering
 TOP_VOLUME_COUNT = int(os.getenv("TOP_VOLUME_COUNT", "10"))
 
 # Scheduling
 SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "5"))
 
-# Performance
-FETCH_BATCH_SIZE = int(os.getenv("FETCH_BATCH_SIZE", "50"))
-FETCH_WORKERS = int(os.getenv("FETCH_WORKERS", "10"))
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
