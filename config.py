@@ -12,8 +12,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 DATA_SOURCE = os.getenv("DATA_SOURCE", "vnstock")
 
 # Filtering
-VOLUME_THRESHOLD = int(os.getenv("VOLUME_THRESHOLD", "500000"))
-MAX_TELEGRAM_SYMBOLS = int(os.getenv("MAX_TELEGRAM_SYMBOLS", "20"))
+TOP_VOLUME_COUNT = int(os.getenv("TOP_VOLUME_COUNT", "10"))
 
 # Scheduling
 SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "5"))

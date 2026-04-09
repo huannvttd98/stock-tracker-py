@@ -50,7 +50,7 @@ def run_tracking_cycle():
 
     # 3. Calculate profits
     price_df = calculate_profits(price_df)
-    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
+    filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
 
     if filtered.empty:
         logger.info("No symbols above volume threshold")
@@ -90,11 +90,11 @@ def run_test_cycle():
         return
 
     price_df = calculate_profits(price_df)
-    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
+    filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
 
     if filtered.empty:
         notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
-        notifier.send_message(f"[TEST] Khong co ma nao dat KL >= {config.VOLUME_THRESHOLD:,} hom nay.")
+        notifier.send_message("[TEST] Khong co du lieu gia hom nay.")
         logger.info("No symbols above threshold, sent test message")
         return
 
@@ -133,7 +133,7 @@ def run_report():
         return
 
     price_df = calculate_profits(price_df)
-    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
+    filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
 
     report_path = generate_html_report(price_df, filtered)
     logger.info(f"Report saved: {report_path}")

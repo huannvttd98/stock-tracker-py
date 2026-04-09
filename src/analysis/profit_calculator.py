@@ -23,7 +23,7 @@ def calculate_profits(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_by_volume(df: pd.DataFrame, volume_threshold: int = 500000) -> pd.DataFrame:
+def filter_by_volume(df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame()
 
@@ -33,9 +33,8 @@ def filter_by_volume(df: pd.DataFrame, volume_threshold: int = 500000) -> pd.Dat
         logger.error(f"Missing volume column. Available: {list(df.columns)}")
         return pd.DataFrame()
 
-    filtered = df[df["volume"] >= volume_threshold].copy()
-    filtered = filtered.sort_values("volume", ascending=False)
-    logger.info(f"Filtered {len(filtered)} symbols with volume >= {volume_threshold:,}")
+    filtered = df.sort_values("volume", ascending=False).head(top_n).copy()
+    logger.info(f"Top {len(filtered)} symbols by volume")
     return filtered
 
 
