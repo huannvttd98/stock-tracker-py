@@ -21,8 +21,7 @@ def get_fetcher():
 def run_tracking_cycle():
     from src.utils.market_hours import is_market_open, VN_TZ
     from src.data.symbol_manager import get_all_symbols
-    from src.analysis.profit_calculator import calculate_profits, filter_profitable, generate_summary
-    from src.charting.chart_generator import generate_chart, cleanup_old_charts
+    from src.analysis.profit_calculator import calculate_profits, filter_by_volume, generate_summary
     from src.notifications.telegram_bot import TelegramNotifier
 
     logger.info("=== Starting tracking cycle ===")
@@ -51,30 +50,16 @@ def run_tracking_cycle():
 
     # 3. Calculate profits
     price_df = calculate_profits(price_df)
-    filtered = filter_profitable(price_df, threshold=config.PROFIT_THRESHOLD)
+    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
 
     if filtered.empty:
-        logger.info("No symbols above profit threshold")
+        logger.info("No symbols above volume threshold")
         return
 
-    # 4. Generate charts
-    chart_paths = {}
-    for _, row in filtered.head(config.MAX_TELEGRAM_SYMBOLS).iterrows():
-        symbol = row["symbol"]
-        sym_data = price_df[price_df["symbol"] == symbol]
-        try:
-            path = generate_chart(symbol, sym_data)
-            chart_paths[symbol] = path
-        except Exception as e:
-            logger.warning(f"Chart generation failed for {symbol}: {e}")
-
-    # 5. Send Telegram alerts
-    summary = generate_summary(filtered)
+    # 4. Send Telegram alerts
+    messages = generate_summary(filtered)
     notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
-    notifier.send_alert_batch(summary, chart_paths, max_symbols=config.MAX_TELEGRAM_SYMBOLS)
-
-    # Cleanup old charts
-    cleanup_old_charts()
+    notifier.send_alert(messages)
 
     logger.info(f"=== Cycle complete: {len(filtered)} symbols alerted ===")
 
@@ -83,8 +68,7 @@ def run_tracking_cycle():
 def run_test_cycle():
     from src.utils.market_hours import VN_TZ
     from src.data.symbol_manager import get_all_symbols
-    from src.analysis.profit_calculator import calculate_profits, filter_profitable, generate_summary
-    from src.charting.chart_generator import generate_chart, cleanup_old_charts
+    from src.analysis.profit_calculator import calculate_profits, filter_by_volume, generate_summary
     from src.notifications.telegram_bot import TelegramNotifier
 
     logger.info("=== Starting TEST cycle (no market hours check) ===")
@@ -106,30 +90,19 @@ def run_test_cycle():
         return
 
     price_df = calculate_profits(price_df)
-    filtered = filter_profitable(price_df, threshold=config.PROFIT_THRESHOLD)
+    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
 
     if filtered.empty:
-        # Still send a message so user knows it works
         notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
-        notifier.send_message(f"[TEST] Khong co ma nao tang > {config.PROFIT_THRESHOLD}% hom nay.")
+        notifier.send_message(f"[TEST] Khong co ma nao dat KL >= {config.VOLUME_THRESHOLD:,} hom nay.")
         logger.info("No symbols above threshold, sent test message")
         return
 
-    chart_paths = {}
-    for _, row in filtered.head(config.MAX_TELEGRAM_SYMBOLS).iterrows():
-        symbol = row["symbol"]
-        sym_data = price_df[price_df["symbol"] == symbol]
-        try:
-            path = generate_chart(symbol, sym_data)
-            chart_paths[symbol] = path
-        except Exception as e:
-            logger.warning(f"Chart generation failed for {symbol}: {e}")
-
-    summary = "[TEST] " + generate_summary(filtered)
+    messages = generate_summary(filtered)
+    messages[0] = "[TEST] " + messages[0]
     notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
-    notifier.send_alert_batch(summary, chart_paths, max_symbols=config.MAX_TELEGRAM_SYMBOLS)
+    notifier.send_alert(messages)
 
-    cleanup_old_charts()
     logger.info(f"=== Test cycle complete: {len(filtered)} symbols alerted ===")
 
 
@@ -160,7 +133,7 @@ def run_report():
         return
 
     price_df = calculate_profits(price_df)
-    filtered = filter_profitable(price_df, threshold=config.PROFIT_THRESHOLD)
+    filtered = filter_by_volume(price_df, volume_threshold=config.VOLUME_THRESHOLD)
 
     report_path = generate_html_report(price_df, filtered)
     logger.info(f"Report saved: {report_path}")

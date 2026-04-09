@@ -23,30 +23,83 @@ def calculate_profits(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_profitable(df: pd.DataFrame, threshold: float = 1.0) -> pd.DataFrame:
-    if df.empty or "profit_pct" not in df.columns:
+def filter_by_volume(df: pd.DataFrame, volume_threshold: int = 500000) -> pd.DataFrame:
+    if df.empty:
         return pd.DataFrame()
 
-    filtered = df[df["profit_pct"] > threshold].copy()
-    filtered = filtered.sort_values("profit_pct", ascending=False)
-    logger.info(f"Filtered {len(filtered)} symbols with profit > {threshold}%")
+    df.columns = [c.lower() for c in df.columns]
+
+    if "volume" not in df.columns:
+        logger.error(f"Missing volume column. Available: {list(df.columns)}")
+        return pd.DataFrame()
+
+    filtered = df[df["volume"] >= volume_threshold].copy()
+    filtered = filtered.sort_values("volume", ascending=False)
+    logger.info(f"Filtered {len(filtered)} symbols with volume >= {volume_threshold:,}")
     return filtered
 
 
-def generate_summary(filtered_df: pd.DataFrame) -> str:
+def _format_volume(vol: float) -> str:
+    if vol >= 1_000_000:
+        return f"{vol / 1_000_000:.1f}M"
+    if vol >= 1_000:
+        return f"{vol / 1_000:.0f}K"
+    return f"{vol:,.0f}"
+
+
+def generate_summary(filtered_df: pd.DataFrame) -> list:
+    """Return list of message strings, each under Telegram's 4096 char limit."""
     if filtered_df.empty:
-        return "Khong tim thay ma nao tang hon nguong."
+        return ["Khong tim thay ma nao dat nguong khoi luong."]
+
+    from datetime import datetime
 
     count = len(filtered_df)
-    lines = [f"Tim thay {count} ma tang hon nguong:\n"]
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    for _, row in filtered_df.iterrows():
+    header = (
+        "<b>🔥 CO PHIEU KHOI LUONG LON</b>\n"
+        f"<i>🕐 {now} | {count} ma</i>\n"
+    )
+
+    items = []
+    for idx, (_, row) in enumerate(filtered_df.iterrows(), 1):
         symbol = row.get("symbol", "???")
         pct = row.get("profit_pct", 0)
         open_price = row.get("open", 0)
         close_price = row.get("close", 0)
-        lines.append(
-            f"  {symbol}: +{pct:.2f}% | Mo: {open_price:,.0f} | Dong: {close_price:,.0f}"
-        )
+        high_price = row.get("high", 0)
+        low_price = row.get("low", 0)
+        volume = row.get("volume", 0)
 
-    return "\n".join(lines)
+        change = close_price - open_price
+        sign = "+" if change >= 0 else ""
+        pct_sign = "+" if pct >= 0 else ""
+        vol_str = _format_volume(volume)
+
+        detail_url = f"https://finance.vietstock.vn/{symbol}/tai-chinh.htm"
+
+        item = (
+            f"<b>{idx}. {symbol}</b>  📊 {vol_str}\n"
+            f"   <code>{open_price:,.0f}</code> → <code>{close_price:,.0f}</code>"
+            f" ({sign}{change:,.0f} | {pct_sign}{pct:.2f}%)\n"
+            f"   H: <code>{high_price:,.0f}</code> | L: <code>{low_price:,.0f}</code>\n"
+            f"   🔗 <a href=\"{detail_url}\">{symbol} chi tiet</a>"
+        )
+        items.append(item)
+
+    # Split into messages under 4096 chars
+    messages = []
+    current = header + "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+
+    for item in items:
+        if len(current) + len(item) + 30 > 4096:
+            current += "━━━━━━━━━━━━━━━━━━━━━━━━"
+            messages.append(current)
+            current = ""
+        current += item + "\n\n"
+
+    current += "━━━━━━━━━━━━━━━━━━━━━━━━"
+    messages.append(current)
+
+    return messages

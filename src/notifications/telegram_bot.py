@@ -1,5 +1,3 @@
-import time
-
 import requests
 
 from src.utils.logger import setup_logger
@@ -7,7 +5,6 @@ from src.utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
-MESSAGE_DELAY = 0.05
 
 
 class TelegramNotifier:
@@ -18,11 +15,16 @@ class TelegramNotifier:
     def _url(self, method: str) -> str:
         return TELEGRAM_API.format(token=self.token, method=method)
 
-    def send_message(self, text: str) -> bool:
+    def send_message(self, text: str, disable_preview: bool = False) -> bool:
         try:
             resp = requests.post(
                 self._url("sendMessage"),
-                json={"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"},
+                json={
+                    "chat_id": self.chat_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": disable_preview,
+                },
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -33,33 +35,10 @@ class TelegramNotifier:
             logger.error(f"Telegram sendMessage error: {e}")
             return False
 
-    def send_photo(self, photo_path: str, caption: str = "") -> bool:
-        try:
-            with open(photo_path, "rb") as f:
-                resp = requests.post(
-                    self._url("sendPhoto"),
-                    data={"chat_id": self.chat_id, "caption": caption},
-                    files={"photo": f},
-                    timeout=30,
-                )
-            if resp.status_code == 200:
-                return True
-            logger.error(f"Telegram sendPhoto failed: {resp.status_code} {resp.text}")
-            return False
-        except Exception as e:
-            logger.error(f"Telegram sendPhoto error: {e}")
-            return False
-
-    def send_alert_batch(self, summary: str, chart_paths: dict, max_symbols: int = 20):
-        self.send_message(summary)
-        time.sleep(MESSAGE_DELAY)
-
-        sent = 0
-        for symbol, path in chart_paths.items():
-            if sent >= max_symbols:
-                break
-            self.send_photo(path, caption=symbol)
-            time.sleep(MESSAGE_DELAY)
-            sent += 1
-
-        logger.info(f"Sent {sent} chart(s) to Telegram")
+    def send_alert(self, messages: list) -> bool:
+        success = True
+        for msg in messages:
+            if not self.send_message(msg, disable_preview=True):
+                success = False
+        logger.info(f"Sent {len(messages)} message(s) to Telegram")
+        return success
