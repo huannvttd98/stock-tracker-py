@@ -1,9 +1,13 @@
+import base64
+import io
 import os
 import sys
 import time
+import webbrowser
 
 import requests
 import qrcode
+import qrcode.image.pil
 
 from src.utils.logger import setup_logger
 
@@ -27,17 +31,66 @@ def _get_bot_info(token: str) -> dict:
     return _api(token, "getMe")
 
 
-def _generate_qr_terminal(url: str):
-    """Generate QR code and print to terminal."""
+def _generate_qr_html(url: str, bot_username: str):
+    """Generate QR code as HTML page and open in browser."""
+    import config
+
+    # Generate QR as PNG in memory
     qr = qrcode.QRCode(
         version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=1,
-        border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
     )
     qr.add_data(url)
     qr.make(fit=True)
-    qr.print_ascii(invert=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Setup Telegram Bot</title>
+<style>
+  body {{ background: #0f1117; color: #e1e4e8; font-family: 'Segoe UI', sans-serif;
+         display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+  .card {{ background: #161b22; border: 1px solid #30363d; border-radius: 16px;
+           padding: 40px; text-align: center; max-width: 440px; }}
+  h1 {{ color: #58a6ff; font-size: 22px; margin-bottom: 8px; }}
+  .bot {{ color: #3fb950; font-size: 18px; margin-bottom: 24px; }}
+  .qr {{ background: white; border-radius: 12px; padding: 16px; display: inline-block; margin-bottom: 24px; }}
+  .qr img {{ width: 280px; height: 280px; display: block; }}
+  .steps {{ text-align: left; color: #8b949e; font-size: 14px; line-height: 2; }}
+  .steps b {{ color: #e1e4e8; }}
+  .link {{ margin-top: 20px; }}
+  .link a {{ color: #58a6ff; text-decoration: none; font-size: 13px; word-break: break-all; }}
+  .link a:hover {{ text-decoration: underline; }}
+  .waiting {{ margin-top: 24px; padding: 12px; background: #1c2128; border-radius: 8px;
+              color: #d29922; font-size: 14px; animation: pulse 2s infinite; }}
+  @keyframes pulse {{ 0%,100% {{ opacity: 1; }} 50% {{ opacity: 0.5; }} }}
+</style></head><body>
+<div class="card">
+  <h1>Setup Telegram Bot</h1>
+  <div class="bot">@{bot_username}</div>
+  <div class="qr"><img src="data:image/png;base64,{qr_b64}" alt="QR Code"></div>
+  <div class="steps">
+    <b>1.</b> Mo Telegram tren dien thoai<br>
+    <b>2.</b> Quet ma QR phia tren<br>
+    <b>3.</b> Nhan <b>Start</b> hoac gui <b>/start</b>
+  </div>
+  <div class="link">Hoac mo link: <a href="{url}" target="_blank">{url}</a></div>
+  <div class="waiting">Dang cho ket noi... (quay lai terminal sau khi gui /start)</div>
+</div></body></html>"""
+
+    html_path = os.path.join(config.BASE_DIR, "setup_telegram.html")
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    webbrowser.open(f"file:///{os.path.abspath(html_path)}")
+    print(f"  Da mo trang QR code trong trinh duyet.")
+    return html_path
 
 
 def _flush_old_updates(token: str) -> int:
@@ -147,11 +200,10 @@ def run_setup(token: str = None):
     bot_username = bot.get("username", "")
     print(f"  Bot: @{bot_username}")
 
-    # 3. Generate QR code
+    # 3. Generate QR code and open in browser
     bot_url = f"https://t.me/{bot_username}?start=setup"
-    print(f"\n  Quet ma QR ben duoi bang Telegram de ket noi:")
-    print(f"  (hoac mo link: {bot_url})\n")
-    _generate_qr_terminal(bot_url)
+    _generate_qr_html(bot_url, bot_username)
+    print(f"  Link: {bot_url}")
 
     # 4. Flush old updates & poll for /start
     last_id = _flush_old_updates(token)

@@ -1,3 +1,6 @@
+import io
+import os
+import sys
 import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
@@ -49,12 +52,23 @@ class VnstockFetcher(PriceFetcher):
         return frames
 
     def _fetch_single(self, symbol: str, start: str, end: str, retries: int = 3) -> pd.DataFrame:
-        from vnstock import Quote
+        from vnstock import stock_historical_data
 
         for attempt in range(retries):
             try:
-                quote = Quote(symbol=symbol)
-                df = quote.history(start=start, end=end, interval="1D")
+                # Suppress vnstock's noisy stderr prints (e.g. "invalid symbol")
+                stderr_backup = sys.stderr
+                sys.stderr = io.StringIO()
+                try:
+                    df = stock_historical_data(
+                        symbol=symbol,
+                        start_date=start,
+                        end_date=end,
+                        resolution="1D",
+                        type="stock",
+                    )
+                finally:
+                    sys.stderr = stderr_backup
 
                 if df is None or df.empty:
                     return pd.DataFrame()

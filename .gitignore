@@ -5,6 +5,8 @@ __pycache__/
 data/symbols_cache.json
 data/charts/*.png
 logs/*.log
+setup_telegram.html
+report.html
 .venv/
 venv/
 *.egg-info/

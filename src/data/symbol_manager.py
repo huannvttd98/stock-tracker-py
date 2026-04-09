@@ -32,14 +32,13 @@ def get_all_symbols() -> list:
 
 def _fetch_from_vnstock() -> list:
     try:
-        from vnstock import Listing
+        from vnstock import listing_companies
 
-        listing = Listing()
-        df = listing.all_symbols(source="VCI")
+        df = listing_companies(live=False)
 
         # Filter HOSE and HNX only
-        if "exchange" in df.columns:
-            df = df[df["exchange"].isin(["HOSE", "HNX"])]
+        if "comGroupCode" in df.columns:
+            df = df[df["comGroupCode"].isin(["HOSE", "HNX"])]
 
         symbols = df["ticker"].tolist() if "ticker" in df.columns else df.iloc[:, 0].tolist()
         logger.info(f"Fetched {len(symbols)} symbols from vnstock")
