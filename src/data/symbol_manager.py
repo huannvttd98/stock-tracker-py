@@ -32,9 +32,10 @@ def get_all_symbols() -> list:
 
 def _fetch_from_vnstock() -> list:
     try:
-        from vnstock import listing_companies
+        from vnstock import Listing
 
-        df = listing_companies(live=False)
+        listing = Listing(source='VCI')
+        df = listing.all_symbols(show_log=False)
 
         # Filter HOSE and HNX only
         if "comGroupCode" in df.columns:
