@@ -60,5 +60,10 @@ class CafefFetcher:
             rows.append(row)
 
         df = pd.DataFrame(rows)
-        logger.info(f"Total: {len(df)} symbols with trading data")
+
+        # Filter by minimum volume
+        import config
+        before = len(df)
+        df = df[df["volume"] >= config.MIN_VOLUME]
+        logger.info(f"Total: {len(df)} symbols (filtered {before - len(df)} with KL < {config.MIN_VOLUME:,})")
         return df

@@ -10,6 +10,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # Filtering
 TOP_VOLUME_COUNT = int(os.getenv("TOP_VOLUME_COUNT", "10"))
+MIN_VOLUME = int(os.getenv("MIN_VOLUME", "100000"))
 WATCHLIST_ALERT_PCT = float(os.getenv("WATCHLIST_ALERT_PCT", "2.0"))
 VOLUME_SPIKE_MULTIPLIER = float(os.getenv("VOLUME_SPIKE_MULTIPLIER", "2.0"))
 
