@@ -13,10 +13,7 @@
 ## 2. Cai dat moi truong
 
 ```bash
-# Cap nhat he thong
 sudo apt update && sudo apt upgrade -y
-
-# Cai cac goi can thiet (Python 3.12 da co san tren Ubuntu 24.04)
 sudo apt install -y python3 python3-pip python3-venv git
 ```
 
@@ -47,11 +44,25 @@ nano .env
 
 Dien cac gia tri:
 
-```
+```ini
+# Telegram bot (bat buoc)
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 TELEGRAM_CHAT_ID=your_chat_id_here
+
+# So ma top KL gui moi 5 phut (mac dinh: 10)
 TOP_VOLUME_COUNT=10
+
+# Watchlist: chi bao khi bien dong >= X% (mac dinh: 2%)
+WATCHLIST_ALERT_PCT=2.0
+
+# Dot bien KL: bao khi KL >= Xx trung binh 20 phien (mac dinh: 2x)
+VOLUME_SPIKE_MULTIPLIER=2.0
+
+# Chu ky quet (phut)
 SCHEDULE_INTERVAL_MINUTES=5
+
+# Log level (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL=INFO
 ```
 
 > Neu chua co chat_id, chay `python3 main.py --setup` de thiet lap qua QR code.
@@ -61,8 +72,11 @@ SCHEDULE_INTERVAL_MINUTES=5
 ```bash
 source /opt/stock-tracker/.venv/bin/activate
 
-# Chay 1 lan de test (gui Telegram)
+# Test gui tin nhan Telegram (top KL)
 python3 main.py --test
+
+# Test gui bao cao cuoi ngay
+python3 main.py --report
 ```
 
 ## 7. Chay bang systemd
@@ -106,20 +120,46 @@ sudo systemctl start stock-tracker
 sudo systemctl status stock-tracker
 ```
 
-## 8. Xem log
+## 8. Ung dung se tu dong chay
+
+Khi service start, app se:
+
+| Tinh nang | Lich chay |
+|---|---|
+| Top KL + Tran/San + Dot bien KL | Moi 5 phut (trong gio giao dich) |
+| Bao cao cuoi ngay | 15:05 Thu 2 - Thu 6 |
+| Telegram bot (lenh /top, /gia...) | Luon luon lang nghe |
+| Watchlist alerts | Moi 5 phut (kiem tra ma da theo doi) |
+
+### Lenh Telegram bot
+
+Gui truc tiep cho bot tren Telegram:
+
+```
+/top     - Top 10 KL giao dich lon nhat
+/gia VNM - Xem gia 1 ma bat ky
+/tran    - Cac ma dang cham tran
+/san     - Cac ma dang cham san
+/watch VNM   - Them ma vao watchlist ca nhan
+/unwatch VNM - Bo ma khoi watchlist
+/list    - Xem watchlist cua ban
+/help    - Xem tat ca lenh
+```
+
+## 9. Xem log
 
 ```bash
-# Log cua systemd
+# Log realtime
 sudo journalctl -u stock-tracker -f
 
-# Log cua ung dung
+# Log file
 tail -f /opt/stock-tracker/logs/stock_tracker.log
 ```
 
-## 9. Cac lenh quan ly
+## 10. Quan ly service
 
 ```bash
-# Dung service
+# Dung
 sudo systemctl stop stock-tracker
 
 # Khoi dong lai
@@ -129,7 +169,7 @@ sudo systemctl restart stock-tracker
 sudo systemctl disable stock-tracker
 ```
 
-## 10. Cap nhat code
+## 11. Cap nhat code
 
 ```bash
 cd /opt/stock-tracker
@@ -139,3 +179,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 sudo systemctl start stock-tracker
 ```
+
+## 12. Cau truc du lieu
+
+App luu du lieu tai `data/`:
+
+```
+data/
+  volume_history.db   # KL giao dich hang ngay (SQLite, tu dong tao)
+  watchlist.db        # Watchlist ca nhan (SQLite, tu dong tao)
+```
+
+> Du lieu SQLite se tu dong duoc tao khi app chay lan dau.
+> Phat hien dot bien KL can it nhat 3 ngay du lieu de tinh trung binh.

@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 data/symbols_cache.json
 data/charts/*.png
+data/*.db
 logs/*.log
 setup_telegram.html
 report.html

@@ -10,10 +10,11 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # Filtering
 TOP_VOLUME_COUNT = int(os.getenv("TOP_VOLUME_COUNT", "10"))
+WATCHLIST_ALERT_PCT = float(os.getenv("WATCHLIST_ALERT_PCT", "2.0"))
+VOLUME_SPIKE_MULTIPLIER = float(os.getenv("VOLUME_SPIKE_MULTIPLIER", "2.0"))
 
 # Scheduling
 SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "5"))
-
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
