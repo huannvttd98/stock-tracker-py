@@ -2,6 +2,7 @@ import pandas as pd
 
 from src.analysis.profit_calculator import _format_volume
 from src.analysis.ceiling_floor import detect_ceiling_floor
+from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
 from src.data.volume_history import detect_volume_spikes
 from src.utils.logger import setup_logger
 
@@ -85,6 +86,11 @@ def generate_daily_report(df: pd.DataFrame) -> list:
                 f"(<b>{row['volume_ratio']:.1f}x</b> TB) "
                 f"| {'+' if row['profit_pct'] >= 0 else ''}{row['profit_pct']:.2f}%"
             )
+
+    # Goi y theo doi
+    suggestions = suggest_stocks(df.copy())
+    if not suggestions.empty:
+        lines.append(format_suggestions(suggestions))
 
     lines.append("\n━━━━━━━━━━━━━━━━━━━━━━━━")
 

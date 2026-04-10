@@ -73,6 +73,8 @@ class TelegramCommandBot:
             self._cmd_tran(chat_id)
         elif cmd == "/san":
             self._cmd_san(chat_id)
+        elif cmd == "/goiy":
+            self._cmd_goiy(chat_id)
         elif cmd == "/watch":
             self._cmd_watch(chat_id, args)
         elif cmd == "/unwatch":
@@ -87,6 +89,7 @@ class TelegramCommandBot:
             "/gia <b>MA</b> - Xem gia 1 ma (VD: /gia VNM)\n"
             "/tran - Cac ma dang cham tran\n"
             "/san - Cac ma dang cham san\n"
+            "/goiy - Goi y ma nen theo doi\n"
             "/watch <b>MA</b> - Them ma vao watchlist\n"
             "/unwatch <b>MA</b> - Bo ma khoi watchlist\n"
             "/list - Xem watchlist cua ban"
@@ -167,6 +170,19 @@ class TelegramCommandBot:
             vol = _format_volume(row["volume"])
             lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
         self._send(chat_id, "\n".join(lines))
+
+    def _cmd_goiy(self, chat_id):
+        from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
+        df = self._fetch_data()
+        if df is None:
+            return self._send(chat_id, "Khong lay duoc du lieu.")
+
+        suggestions = suggest_stocks(df)
+        if suggestions.empty:
+            return self._send(chat_id, "Chua co du lieu lich su de goi y (can it nhat 3 ngay).")
+
+        text = format_suggestions(suggestions)
+        self._send(chat_id, text)
 
     def _cmd_watch(self, chat_id, args):
         if not args:
