@@ -1,7 +1,8 @@
 import pandas as pd
 
-from src.data.volume_history import get_avg_volumes
+from src.data.price_history import get_avg_volumes, get_all_close_prices
 from src.analysis.profit_calculator import _format_volume
+from src.analysis.technical import analyze_symbol
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -12,6 +13,7 @@ SCORE_PRICE_UP = 2           # Gia tang > 1%
 SCORE_NEAR_CEILING = 2       # Gia gan tran (>= 95% khoang tran)
 SCORE_HIGH_VOLUME = 1        # Top 5% KL thi truong
 SCORE_PRICE_UP_WITH_VOL = 3  # Tang gia + KL dot bien (combo)
+SCORE_TA_BULLISH = 2         # Tin hieu ky thuat tich cuc (RSI/MA/BB)
 
 
 def suggest_stocks(df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
@@ -33,6 +35,7 @@ def suggest_stocks(df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
         return pd.DataFrame()
 
     avg_volumes = get_avg_volumes()
+    close_data = get_all_close_prices(days=30)
 
     # Volume percentile threshold (top 5%)
     vol_95 = df["volume"].quantile(0.95)
@@ -69,10 +72,18 @@ def suggest_stocks(df: pd.DataFrame, top_n: int = 10) -> pd.DataFrame:
             score += SCORE_HIGH_VOLUME
             signals.append("KL top 5%")
 
-        # 5. Combo: tang gia + KL dot bien (tin hieu manh nhat)
+        # 5. Combo: tang gia + KL dot bien
         if row["profit_pct"] > 1.0 and vol_ratio >= 2.0:
             score += SCORE_PRICE_UP_WITH_VOL
             signals.append("COMBO")
+
+        # 6. Tin hieu ky thuat (RSI/MA/BB)
+        closes = close_data.get(symbol)
+        if closes and len(closes) >= 21:
+            ta = analyze_symbol(closes)
+            if ta and ta["score"] >= 2:
+                score += SCORE_TA_BULLISH
+                signals.extend(ta["signals"][:2])
 
         if score >= 3:
             scores.append({

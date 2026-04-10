@@ -12,7 +12,8 @@ logger = setup_logger("main")
 def run_tracking_cycle():
     from src.utils.market_hours import is_market_open
     from src.data.cafef_fetcher import CafefFetcher
-    from src.data.volume_history import save_daily_volumes, detect_volume_spikes
+    from src.data.price_history import save_daily_prices
+    from src.data.volume_history import detect_volume_spikes
     from src.data.watchlist import get_all_watched_symbols
     from src.analysis.profit_calculator import calculate_profits, filter_by_volume, generate_summary, _format_volume
     from src.analysis.ceiling_floor import detect_ceiling_floor
@@ -36,7 +37,7 @@ def run_tracking_cycle():
     price_df = calculate_profits(price_df)
 
     # 3. Save volume history
-    save_daily_volumes(price_df)
+    save_daily_prices(price_df)
 
     # 4. Top volume alert
     filtered = filter_by_volume(price_df, top_n=config.TOP_VOLUME_COUNT)
@@ -146,7 +147,7 @@ def run_daily_report():
         return
 
     price_df = calculate_profits(price_df)
-    save_daily_volumes(price_df)
+    save_daily_prices(price_df)
 
     messages = generate_daily_report(price_df)
     notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)

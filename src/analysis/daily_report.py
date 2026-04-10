@@ -4,6 +4,8 @@ from src.analysis.profit_calculator import _format_volume
 from src.analysis.ceiling_floor import detect_ceiling_floor
 from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
 from src.data.volume_history import detect_volume_spikes
+from src.analysis.technical import analyze_symbol
+from src.data.price_history import get_all_close_prices
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -87,6 +89,11 @@ def generate_daily_report(df: pd.DataFrame) -> list:
                 f"| {'+' if row['profit_pct'] >= 0 else ''}{row['profit_pct']:.2f}%"
             )
 
+    # Tin hieu ky thuat
+    ta_lines = _build_technical_section(df)
+    if ta_lines:
+        lines.extend(ta_lines)
+
     # Goi y theo doi
     suggestions = suggest_stocks(df.copy())
     if not suggestions.empty:
@@ -95,6 +102,53 @@ def generate_daily_report(df: pd.DataFrame) -> list:
     lines.append("\n━━━━━━━━━━━━━━━━━━━━━━━━")
 
     # Split into messages under 4096 chars
+    return _split_messages(lines)
+
+
+def _build_technical_section(df: pd.DataFrame) -> list:
+    """Build technical analysis section for daily report."""
+    close_data = get_all_close_prices(days=30)
+    if not close_data:
+        return []
+
+    buy_signals = []
+    sell_signals = []
+
+    for symbol in df["symbol"].tolist():
+        closes = close_data.get(symbol)
+        if not closes or len(closes) < 21:
+            continue
+        result = analyze_symbol(closes)
+        if not result:
+            continue
+        if result["score"] >= 3:
+            buy_signals.append((symbol, result))
+        elif result["score"] <= -3:
+            sell_signals.append((symbol, result))
+
+    if not buy_signals and not sell_signals:
+        return []
+
+    lines = []
+
+    if buy_signals:
+        buy_signals.sort(key=lambda x: x[1]["score"], reverse=True)
+        lines.append(f"\n<b>📈 TIN HIEU MUA ({len(buy_signals)} ma)</b>")
+        for symbol, r in buy_signals[:10]:
+            signals = " | ".join(r["signals"])
+            lines.append(f"  <b>{symbol}</b> ({signals})")
+
+    if sell_signals:
+        sell_signals.sort(key=lambda x: x[1]["score"])
+        lines.append(f"\n<b>📉 TIN HIEU BAN ({len(sell_signals)} ma)</b>")
+        for symbol, r in sell_signals[:10]:
+            signals = " | ".join(r["signals"])
+            lines.append(f"  <b>{symbol}</b> ({signals})")
+
+    return lines
+
+
+def _split_messages(lines: list) -> list:
     messages = []
     current = ""
     for line in lines:

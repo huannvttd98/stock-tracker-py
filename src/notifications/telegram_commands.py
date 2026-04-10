@@ -75,6 +75,10 @@ class TelegramCommandBot:
             self._cmd_san(chat_id)
         elif cmd == "/goiy":
             self._cmd_goiy(chat_id)
+        elif cmd == "/pt":
+            self._cmd_phantich(chat_id, args)
+        elif cmd == "/hocpt":
+            self._cmd_hocpt(chat_id)
         elif cmd == "/watch":
             self._cmd_watch(chat_id, args)
         elif cmd == "/unwatch":
@@ -90,9 +94,58 @@ class TelegramCommandBot:
             "/tran - Cac ma dang cham tran\n"
             "/san - Cac ma dang cham san\n"
             "/goiy - Goi y ma nen theo doi\n"
+            "/pt <b>MA</b> - Phan tich ky thuat (VD: /pt VNM)\n"
+            "/hocpt - Giai thich cach phan tich ky thuat\n"
             "/watch <b>MA</b> - Them ma vao watchlist\n"
             "/unwatch <b>MA</b> - Bo ma khoi watchlist\n"
             "/list - Xem watchlist cua ban"
+        ))
+
+    def _cmd_hocpt(self, chat_id):
+        self._send(chat_id, (
+            "<b>📚 RSI (Relative Strength Index)</b>\n\n"
+            "Do suc manh tang/giam cua gia trong 14 phien.\n"
+            "Thang diem: 0 - 100\n\n"
+            "• RSI &lt;= 30 → <b>Qua ban</b> (gia giam qua nhieu, co the bat day)\n"
+            "• RSI &gt;= 70 → <b>Qua mua</b> (gia tang qua nhieu, co the dieu chinh)\n"
+            "• RSI 30-70 → Binh thuong\n\n"
+            "<i>VD: RSI = 25 → Co phieu bi ban thao manh, co the la co hoi mua.</i>"
+        ))
+        self._send(chat_id, (
+            "<b>📚 MA CROSSOVER (Giao cat trung binh dong)</b>\n\n"
+            "So sanh 2 duong trung binh:\n"
+            "• <b>MA5</b>: Trung binh gia dong 5 phien (ngan han)\n"
+            "• <b>MA20</b>: Trung binh gia dong 20 phien (trung han)\n\n"
+            "Tin hieu:\n"
+            "• MA5 cat len MA20 → <b>Golden Cross</b> 🟢 (xu huong tang)\n"
+            "• MA5 cat xuong MA20 → <b>Death Cross</b> 🔴 (xu huong giam)\n"
+            "• MA5 &gt; MA20 → Dang trong xu huong tang\n"
+            "• MA5 &lt; MA20 → Dang trong xu huong giam\n\n"
+            "<i>VD: MA5 vua vuot len MA20 → Golden Cross, tin hieu mua.</i>"
+        ))
+        self._send(chat_id, (
+            "<b>📚 BOLLINGER BANDS (Dai bang Bollinger)</b>\n\n"
+            "3 duong bao quanh gia:\n"
+            "• <b>Bang tren</b>: MA20 + 2 do lech chuan\n"
+            "• <b>Bang giua</b>: MA20\n"
+            "• <b>Bang duoi</b>: MA20 - 2 do lech chuan\n\n"
+            "Doc vi tri (0% = bang duoi, 100% = bang tren):\n"
+            "• Gia &gt;= 100% → <b>Breakout len</b> (tang manh hoac qua mua)\n"
+            "• Gia &lt;= 0% → <b>Breakout xuong</b> (giam manh hoac co hoi mua)\n"
+            "• Gia 20-80% → Binh thuong\n\n"
+            "<i>VD: Vi tri = 5% → Gia gan bang duoi, co the bat day.</i>"
+        ))
+        self._send(chat_id, (
+            "<b>📚 CACH DOC KET QUA /pt</b>\n\n"
+            "Moi chi bao duoc cham diem:\n"
+            "• Diem duong (+) → tin hieu MUA\n"
+            "• Diem am (-) → tin hieu BAN\n\n"
+            "Tong hop:\n"
+            "🟢 <b>TICH CUC</b>: Nhieu tin hieu mua (>= +3 diem)\n"
+            "🟡 <b>NGHIENG TANG/GIAM</b>: Tin hieu nhe\n"
+            "🔴 <b>TIEU CUC</b>: Nhieu tin hieu ban (&lt;= -3 diem)\n"
+            "⚪ <b>TRUNG TINH</b>: Khong co tin hieu ro\n\n"
+            "<i>Luu y: Day la cong cu ho tro, khong phai loi khuyen dau tu.</i>"
         ))
 
     def _cmd_top(self, chat_id):
@@ -170,6 +223,89 @@ class TelegramCommandBot:
             vol = _format_volume(row["volume"])
             lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
         self._send(chat_id, "\n".join(lines))
+
+    def _cmd_phantich(self, chat_id, args):
+        if not args:
+            return self._send(chat_id, "Dung: /pt <b>MA</b>\nVD: /pt VNM")
+
+        symbol = args[0].upper()
+
+        from src.data.price_history import get_price_history
+        from src.analysis.technical import calc_rsi, detect_ma_crossover, get_ma_position, calc_bollinger, interpret_rsi, interpret_bollinger
+
+        hist = get_price_history(symbol, days=30)
+        if hist.empty or len(hist) < 5:
+            return self._send(chat_id, f"Chua du du lieu cho <b>{symbol}</b> (can it nhat 5 phien).")
+
+        closes = hist["close"].tolist()
+        current = closes[-1]
+
+        # RSI
+        rsi = calc_rsi(closes)
+        rsi_text = f"RSI(14): <b>{rsi}</b> - {interpret_rsi(rsi)}" if rsi else "RSI: chua du du lieu (14 phien)"
+
+        # MA
+        ma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else None
+        ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
+        crossover = detect_ma_crossover(closes)
+        ma_pos = get_ma_position(closes)
+
+        ma_lines = []
+        if ma5:
+            ma_lines.append(f"MA5: <code>{ma5:,.0f}</code>")
+        if ma20:
+            ma_lines.append(f"MA20: <code>{ma20:,.0f}</code>")
+        if crossover == "GOLDEN_CROSS":
+            ma_lines.append("⬆️ <b>GOLDEN CROSS</b> (tin hieu mua)")
+        elif crossover == "DEATH_CROSS":
+            ma_lines.append("⬇️ <b>DEATH CROSS</b> (tin hieu ban)")
+        elif ma_pos == "ABOVE":
+            ma_lines.append("MA5 > MA20 (xu huong tang)")
+        elif ma_pos == "BELOW":
+            ma_lines.append("MA5 < MA20 (xu huong giam)")
+        ma_text = "\n   ".join(ma_lines) if ma_lines else "Chua du du lieu (20 phien)"
+
+        # Bollinger
+        bb = calc_bollinger(closes)
+        if bb:
+            bb_text = (
+                f"Upper: <code>{bb['upper']:,.0f}</code> | Mid: <code>{bb['middle']:,.0f}</code> | Lower: <code>{bb['lower']:,.0f}</code>\n"
+                f"   Vi tri: <b>{bb['position']:.0%}</b> - {interpret_bollinger(bb)}"
+            )
+        else:
+            bb_text = "Chua du du lieu (20 phien)"
+
+        # Overall
+        score_total = 0
+        if rsi and rsi <= 30: score_total += 2
+        elif rsi and rsi >= 70: score_total -= 2
+        if crossover == "GOLDEN_CROSS": score_total += 3
+        elif crossover == "DEATH_CROSS": score_total -= 3
+        if bb and bb["position"] <= 0.2: score_total += 1
+        elif bb and bb["position"] >= 0.8: score_total -= 1
+
+        if score_total >= 3:
+            verdict = "🟢 <b>TICH CUC</b> - Nhieu tin hieu mua"
+        elif score_total <= -3:
+            verdict = "🔴 <b>TIEU CUC</b> - Nhieu tin hieu ban"
+        elif score_total > 0:
+            verdict = "🟡 <b>NGHIENG TANG</b>"
+        elif score_total < 0:
+            verdict = "🟡 <b>NGHIENG GIAM</b>"
+        else:
+            verdict = "⚪ <b>TRUNG TINH</b>"
+
+        url = f"https://finance.vietstock.vn/{symbol}/tai-chinh.htm"
+        self._send(chat_id, (
+            f"<b>📊 PHAN TICH: {symbol}</b>\n"
+            f"Gia hien tai: <code>{current:,.0f}</code>\n"
+            f"Du lieu: {len(closes)} phien\n\n"
+            f"<b>RSI</b>\n   {rsi_text}\n\n"
+            f"<b>MA Crossover</b>\n   {ma_text}\n\n"
+            f"<b>Bollinger Bands</b>\n   {bb_text}\n\n"
+            f"<b>Tong hop:</b> {verdict}\n\n"
+            f"🔗 <a href=\"{url}\">Xem chi tiet {symbol}</a>"
+        ))
 
     def _cmd_goiy(self, chat_id):
         from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
