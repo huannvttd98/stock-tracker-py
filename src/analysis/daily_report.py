@@ -6,9 +6,21 @@ from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
 from src.data.volume_history import detect_volume_spikes
 from src.analysis.technical import analyze_symbol
 from src.data.price_history import get_all_close_prices, get_tracking_stats
+from src.data.sector_map import SECTORS
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+
+def _fmt_signed(val: float) -> str:
+    """Format a number with sign and K/M suffix."""
+    sign = "+" if val > 0 else ""
+    abs_val = abs(val)
+    if abs_val >= 1_000_000:
+        return f"{sign}{val / 1_000_000:.1f}M"
+    if abs_val >= 1_000:
+        return f"{sign}{val / 1_000:.0f}K"
+    return f"{sign}{val:,.0f}"
 
 
 def generate_daily_report(df: pd.DataFrame) -> list:
@@ -117,6 +129,21 @@ def generate_daily_report(df: pd.DataFrame) -> list:
                 f"| {'+' if row['profit_pct'] >= 0 else ''}{row['profit_pct']:.2f}%"
             )
 
+    # Market breadth bar
+    breadth_lines = _build_market_breadth(df, up, down, flat, total)
+    if breadth_lines:
+        lines.extend(breadth_lines)
+
+    # Sector ranking
+    sector_lines = _build_sector_ranking(df)
+    if sector_lines:
+        lines.extend(sector_lines)
+
+    # Foreign flow summary
+    foreign_lines = _build_foreign_flow(df)
+    if foreign_lines:
+        lines.extend(foreign_lines)
+
     # Tin hieu ky thuat
     ta_lines = _build_technical_section(df)
     if ta_lines:
@@ -131,6 +158,143 @@ def generate_daily_report(df: pd.DataFrame) -> list:
 
     # Split into messages under 4096 chars
     return _split_messages(lines)
+
+
+def _build_market_breadth(df: pd.DataFrame, up: int, down: int, flat: int, total: int) -> list:
+    """Build visual market breadth bar."""
+    if total <= 0:
+        return []
+    bar_len = 20
+    up_bars = round(up / total * bar_len)
+    down_bars = round(down / total * bar_len)
+    flat_bars = bar_len - up_bars - down_bars
+    bar = "🟩" * up_bars + "⬜" * flat_bars + "🟥" * down_bars
+    up_pct = up / total * 100
+    down_pct = down / total * 100
+    return [
+        f"\n<b>📊 DO RONG THI TRUONG</b>",
+        bar,
+        f"Tang: {up_pct:.0f}% ({up}) | Giam: {down_pct:.0f}% ({down}) | Dung: {flat}",
+    ]
+
+
+def _build_sector_ranking(df: pd.DataFrame) -> list:
+    """Build sector performance ranking."""
+    sector_stats = []
+    for sname, syms in SECTORS.items():
+        sector_df = df[df["symbol"].isin(syms)]
+        if sector_df.empty:
+            continue
+        avg_pct = sector_df["profit_pct"].mean()
+        total_vol = sector_df["volume"].sum()
+        up_count = len(sector_df[sector_df["profit_pct"] > 0])
+        total_count = len(sector_df)
+        sector_stats.append({
+            "name": sname, "avg_pct": avg_pct,
+            "total_vol": total_vol, "up": up_count, "total": total_count,
+        })
+
+    if not sector_stats:
+        return []
+
+    sector_stats.sort(key=lambda x: x["avg_pct"], reverse=True)
+
+    lines = ["\n<b>🏢 XEP HANG NGANH</b>"]
+
+    # Top 3 tang
+    for i, s in enumerate(sector_stats[:3]):
+        medal = ["🥇", "🥈", "🥉"][i]
+        sign = "+" if s["avg_pct"] >= 0 else ""
+        lines.append(
+            f"{medal} <b>{s['name']}</b> {sign}{s['avg_pct']:.2f}%"
+            f" ({s['up']}/{s['total']}↑)"
+            f" KL: {_format_volume(s['total_vol'])}"
+        )
+
+    # Bottom 3 giam (reversed so worst is first)
+    bottom = [s for s in sector_stats if s["avg_pct"] < 0]
+    if bottom:
+        bottom.sort(key=lambda x: x["avg_pct"])
+        lines.append("")
+        for s in bottom[:3]:
+            lines.append(
+                f"📉 <b>{s['name']}</b> {s['avg_pct']:.2f}%"
+                f" ({s['up']}/{s['total']}↑)"
+            )
+
+    return lines
+
+
+def _build_foreign_flow(df: pd.DataFrame) -> list:
+    """Build foreign flow net summary."""
+    has_foreign = "foreign_buy" in df.columns and "foreign_sell" in df.columns
+    if not has_foreign:
+        return []
+
+    fdf = df.copy()
+    fdf["foreign_buy"] = pd.to_numeric(fdf["foreign_buy"], errors="coerce").fillna(0)
+    fdf["foreign_sell"] = pd.to_numeric(fdf["foreign_sell"], errors="coerce").fillna(0)
+    fdf["foreign_net"] = fdf["foreign_buy"] - fdf["foreign_sell"]
+
+    total_buy = fdf["foreign_buy"].sum()
+    total_sell = fdf["foreign_sell"].sum()
+    total_net = total_buy - total_sell
+
+    if total_buy == 0 and total_sell == 0:
+        return []
+
+    net_emoji = "🟢" if total_net > 0 else "🔴"
+
+    lines = [
+        f"\n<b>🌐 DONG TIEN NGOAI</b>",
+        f"  Mua: <code>{_format_volume(total_buy)}</code>"
+        f" | Ban: <code>{_format_volume(total_sell)}</code>"
+        f" | Rong: {net_emoji} <b>{_fmt_signed(total_net)}</b>",
+    ]
+
+    # Top 5 foreign net buy
+    top_buy = fdf[fdf["foreign_net"] > 0].nlargest(5, "foreign_net")
+    if not top_buy.empty:
+        lines.append("  <b>Top mua rong:</b>")
+        for _, row in top_buy.iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
+            lines.append(f"    <b>{sym}</b> {_fmt_signed(row['foreign_net'])}")
+
+    # Top 5 foreign net sell
+    top_sell = fdf[fdf["foreign_net"] < 0].nsmallest(5, "foreign_net")
+    if not top_sell.empty:
+        lines.append("  <b>Top ban rong:</b>")
+        for _, row in top_sell.iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
+            lines.append(f"    <b>{sym}</b> {_fmt_signed(row['foreign_net'])}")
+
+    # Sector foreign flow
+    sector_foreign = []
+    for sname, syms in SECTORS.items():
+        sdf = fdf[fdf["symbol"].isin(syms)]
+        if sdf.empty:
+            continue
+        snet = sdf["foreign_net"].sum()
+        if snet != 0:
+            sector_foreign.append((sname, snet))
+
+    if sector_foreign:
+        sector_foreign.sort(key=lambda x: x[1], reverse=True)
+        lines.append("  <b>Nganh:</b>")
+        # Show top 3 buy + top 3 sell
+        top_s = sector_foreign[:3]
+        bot_s = [s for s in sector_foreign if s[1] < 0][:3]
+        for sname, snet in top_s:
+            if snet > 0:
+                lines.append(f"    🟢 {sname}: {_fmt_signed(snet)}")
+        for sname, snet in bot_s:
+            lines.append(f"    🔴 {sname}: {_fmt_signed(snet)}")
+
+    return lines
 
 
 def _build_technical_section(df: pd.DataFrame) -> list:
