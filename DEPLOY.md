@@ -30,7 +30,11 @@ cd /opt/stock-tracker
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+
+# Kich hoat venv (can chay moi khi mo terminal moi)
+source .venv/bin/activate          # Linux/Mac
+# .venv\Scripts\activate           # Windows
+
 pip install --upgrade pip
 pip install -r requirements.txt
 ```

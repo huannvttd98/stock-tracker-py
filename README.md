@@ -87,6 +87,8 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+> Luu y: Luon kich hoat venv truoc khi chay bat ky lenh nao (`activate`).
+
 ## Cau hinh
 
 ```bash
@@ -121,6 +123,10 @@ cp .env.example .env
 ## Su dung
 
 ```bash
+# Kich hoat virtual environment truoc khi chay
+.venv\Scripts\activate       # Windows
+source .venv/bin/activate    # Linux/Mac
+
 # Chay 1 lan (test)
 python main.py --once
 

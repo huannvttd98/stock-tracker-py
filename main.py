@@ -53,13 +53,19 @@ def run_tracking_cycle():
     if not ceiling.empty:
         cf_lines.append(f"<b>🔴 {len(ceiling)} MA CHAM TRAN</b>\n")
         for _, row in ceiling.head(15).iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
             vol = _format_volume(row["volume"])
-            cf_lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
+            cf_lines.append(f"<b>{sym}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
     if not floor.empty:
         cf_lines.append(f"\n<b>🟢 {len(floor)} MA CHAM SAN</b>\n")
         for _, row in floor.head(15).iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
             vol = _format_volume(row["volume"])
-            cf_lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
+            cf_lines.append(f"<b>{sym}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
     if cf_lines:
         notifier.send_message("\n".join(cf_lines), disable_preview=True)
 

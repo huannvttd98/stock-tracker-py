@@ -17,6 +17,10 @@ def detect_ceiling_floor(df: pd.DataFrame) -> tuple:
         logger.warning("Missing ceiling/floor/close columns")
         return pd.DataFrame(), pd.DataFrame()
 
+    # Drop rows with invalid symbol
+    if "symbol" in cols:
+        df = df[df["symbol"].notna() & (df["symbol"] != "")].copy()
+
     # Ceiling: close >= ceiling (tang tran)
     ceiling = df[df["close"] >= df["ceiling"]].copy()
     ceiling = ceiling.sort_values("volume", ascending=False)

@@ -239,8 +239,11 @@ class TelegramCommandBot:
 
         lines = [f"<b>🔴 {len(ceiling)} MA CHAM TRAN</b>\n"]
         for _, row in ceiling.head(20).iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
             vol = _format_volume(row["volume"])
-            lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
+            lines.append(f"<b>{sym}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
         self._send(chat_id, "\n".join(lines))
 
     def _cmd_san(self, chat_id):
@@ -254,8 +257,11 @@ class TelegramCommandBot:
 
         lines = [f"<b>🟢 {len(floor)} MA CHAM SAN</b>\n"]
         for _, row in floor.head(20).iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
             vol = _format_volume(row["volume"])
-            lines.append(f"<b>{row['symbol']}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
+            lines.append(f"<b>{sym}</b> | <code>{row['close']:,.0f}</code> | KL: {vol}")
         self._send(chat_id, "\n".join(lines))
 
     def _cmd_phantich(self, chat_id, args):

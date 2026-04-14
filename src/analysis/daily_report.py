@@ -62,9 +62,12 @@ def generate_daily_report(df: pd.DataFrame) -> list:
     # Top KL
     lines.append("\n<b>📊 TOP KHOI LUONG</b>")
     for _, row in top_vol.iterrows():
+        sym = row.get("symbol", "")
+        if not sym or str(sym) == "nan":
+            continue
         sign = "+" if row["profit_pct"] >= 0 else ""
         lines.append(
-            f"  <b>{row['symbol']}</b> {_format_volume(row['volume'])} "
+            f"  <b>{sym}</b> {_format_volume(row['volume'])} "
             f"| {sign}{row['profit_pct']:.2f}%"
         )
 
@@ -72,19 +75,28 @@ def generate_daily_report(df: pd.DataFrame) -> list:
     if not ceiling.empty:
         lines.append(f"\n<b>🔴 CHAM TRAN ({len(ceiling)} ma)</b>")
         for _, row in ceiling.head(10).iterrows():
-            lines.append(f"  <b>{row['symbol']}</b> <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}")
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
+            lines.append(f"  <b>{sym}</b> <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}")
 
     if not floor.empty:
         lines.append(f"\n<b>🟢 CHAM SAN ({len(floor)} ma)</b>")
         for _, row in floor.head(10).iterrows():
-            lines.append(f"  <b>{row['symbol']}</b> <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}")
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
+            lines.append(f"  <b>{sym}</b> <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}")
 
     # Dot bien KL
     if not spikes.empty:
         lines.append(f"\n<b>⚡ DOT BIEN KHOI LUONG ({len(spikes)} ma)</b>")
         for _, row in spikes.head(10).iterrows():
+            sym = row.get("symbol", "")
+            if not sym or str(sym) == "nan":
+                continue
             lines.append(
-                f"  <b>{row['symbol']}</b> KL: {_format_volume(row['volume'])} "
+                f"  <b>{sym}</b> KL: {_format_volume(row['volume'])} "
                 f"(<b>{row['volume_ratio']:.1f}x</b> TB) "
                 f"| {'+' if row['profit_pct'] >= 0 else ''}{row['profit_pct']:.2f}%"
             )

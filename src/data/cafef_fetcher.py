@@ -52,7 +52,7 @@ class CafefFetcher:
         rows = []
         for item in all_data:
             row = {std: item.get(raw, 0) for raw, std in FIELD_MAP.items()}
-            if not row["close"]:
+            if not row["close"] or not isinstance(row["symbol"], str) or not row["symbol"].strip():
                 continue
             # CafeF prices are in 1000 VND
             for col in ["open", "close", "high", "low", "ceiling", "floor", "change"]:
