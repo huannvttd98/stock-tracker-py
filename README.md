@@ -30,14 +30,14 @@ Du lieu sau khi fetch se di qua cac module phan tich:
 
 9. **`src/analysis/profit_calculator.py`** — Tinh `profit_pct = (close - open) / open * 100`. Loc top N theo volume, format tin nhan tong hop.
 10. **`src/analysis/ceiling_floor.py`** — Phat hien ma cham tran (tang kich bien) va cham san (giam kich bien).
-11. **`src/analysis/technical.py`** — Phan tich ky thuat: RSI (14 phien), MA crossover (SMA 5/20), Bollinger Bands (20 phien). Ham `analyze_symbol()` tra ve diem tong hop (-5 den +5).
+11. **`src/analysis/technical.py`** — Phan tich ky thuat: RSI (14 phien), MA crossover (SMA 5/20), Bollinger Bands (20 phien), MACD (12,26,9). Ham `analyze_symbol()` tra ve diem tong hop.
 12. **`src/analysis/stock_suggestion.py`** — He thong cham diem goi y co phieu. Ket hop: dot bien KL (3 diem), % gia (2 diem), gan tran (2 diem), tin hieu ky thuat (2 diem). Ma dat >= 3 diem moi duoc goi y.
 13. **`src/analysis/daily_report.py`** — Tao bao cao cuoi ngay tong hop: top tang/giam, tran/san, dot bien KL, tin hieu ky thuat, goi y.
 
 ### Buoc 4: Gui thong bao (`src/notifications/`)
 
 14. **`src/notifications/telegram_bot.py`** — Lop `TelegramNotifier` boc Telegram Bot API. Hai ham chinh: `send_message()` va `send_alert()` (gui nhieu tin nhan).
-15. **`src/notifications/telegram_commands.py`** — Bot xu ly lenh tu nguoi dung: `/top`, `/gia <MA>`, `/tran`, `/san`, `/goiy`, `/pt <MA>` (phan tich ky thuat), `/watch`, `/unwatch`, `/list`, `/hocpt` (hoc phan tich ky thuat). Chay polling trong background thread.
+15. **`src/notifications/telegram_commands.py`** — Bot xu ly lenh tu nguoi dung: `/top`, `/gia <MA>`, `/tran`, `/san`, `/goiy`, `/pt <MA>` (phan tich ky thuat + MACD + bieu do nen), `/ls <MA>` (lich su gia), `/ss <MA1 MA2...>` (so sanh ma), `/alert <MA >GIA>` (canh bao gia), `/nganh` (bao cao nganh), `/report` (bao cao tong hop), `/export` (xuat CSV), `/watch`, `/unwatch`, `/list`, `/hocpt`. Chay polling trong background thread.
 16. **`src/notifications/telegram_setup.py`** — Setup bot lan dau: tao QR code de link Telegram, poll cho den khi user gui `/start`, tu dong luu `chat_id` vao `.env`.
 
 ### Buoc 5: Bao cao & tien ich
@@ -57,13 +57,19 @@ CafeF API ──fetch──> DataFrame (OHLCV)
                 ┌────────┼────────────┬──────────────┐
                 v        v            v              v
           profit_pct  ceiling/floor  volume_spikes  technical
-                │        │            │              │
+                │        │            │         (RSI/MA/BB/MACD)
                 └────────┴────────────┴──────────────┘
                                 │
                     ┌───────────┼───────────┐
                     v           v           v
               Telegram Bot   Daily Report  HTML Report
               (real-time)    (15:05 daily)  (report.html)
+                  │
+     ┌────────────┼────────────────────┐
+     v            v                    v
+  /top /gia    /pt (chart+MACD)     /alert (gia muc tieu)
+  /tran /san   /ls (lich su)        /nganh (sector)
+  /goiy        /ss (so sanh)        /export (CSV)
 ```
 
 ---
@@ -138,9 +144,9 @@ stock-tracker/
   main.py               # Entry point + scheduler
   config.py             # Cau hinh tu .env
   src/
-    data/               # Lay du lieu gia, danh sach ma
-    analysis/           # Tinh % loi nhuan, phan tich ky thuat
-    charting/           # Tao bieu do PNG (chua implement)
+    data/               # Lay du lieu gia, danh sach ma, canh bao gia, nganh
+    analysis/           # Tinh % loi nhuan, phan tich ky thuat (RSI, MA, BB, MACD)
+    charting/           # Tao bieu do nen (candlestick) PNG
     notifications/      # Gui Telegram + command bot
     report/             # Bao cao HTML
     utils/              # Logger, cache, gio giao dich

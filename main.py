@@ -157,7 +157,7 @@ def run_test_cycle():
 def run_daily_report():
     from src.data.cafef_fetcher import CafefFetcher
     from src.analysis.profit_calculator import calculate_profits
-    from src.data.volume_history import save_daily_volumes
+    from src.data.price_history import save_daily_prices
     from src.analysis.daily_report import generate_daily_report
     from src.notifications.telegram_bot import TelegramNotifier
 

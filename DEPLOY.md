@@ -127,6 +127,7 @@ Khi service start, app se:
 | Tinh nang | Lich chay |
 |---|---|
 | Top KL + Tran/San + Dot bien KL | Moi 5 phut (trong gio giao dich) |
+| Canh bao gia muc tieu (/alert) | Moi 5 phut (kiem tra va gui thong bao) |
 | Bao cao cuoi ngay | 15:05 Thu 2 - Thu 6 |
 | Telegram bot (lenh /top, /gia...) | Luon luon lang nghe |
 | Watchlist alerts | Moi 5 phut (kiem tra ma da theo doi) |
@@ -136,14 +137,26 @@ Khi service start, app se:
 Gui truc tiep cho bot tren Telegram:
 
 ```
-/top     - Top 10 KL giao dich lon nhat
-/gia VNM - Xem gia 1 ma bat ky
-/tran    - Cac ma dang cham tran
-/san     - Cac ma dang cham san
+/top         - Top 10 KL giao dich lon nhat
+/gia VNM     - Xem gia 1 ma bat ky
+/tran        - Cac ma dang cham tran
+/san         - Cac ma dang cham san
+/goiy        - Goi y ma nen theo doi
+/pt VNM      - Phan tich ky thuat + MACD + bieu do nen
+/ls VNM      - Lich su gia 10 phien (hoac /ls VNM 20)
+/ss VNM VIC HPG - So sanh nhieu ma (toi da 5)
+/alert VNM >50000 - Canh bao khi gia tang len 50,000
+/alert VNM <20000 - Canh bao khi gia giam xuong 20,000
+/alert       - Xem danh sach canh bao dang hoat dong
+/nganh       - Bao cao tong hop theo nganh
+/nganh ngan hang - Xem chi tiet 1 nganh
+/report      - Bao cao tong hop thi truong
+/export      - Xuat du lieu CSV gui qua Telegram
+/hocpt       - Giai thich cach doc phan tich ky thuat
 /watch VNM   - Them ma vao watchlist ca nhan
 /unwatch VNM - Bo ma khoi watchlist
-/list    - Xem watchlist cua ban
-/help    - Xem tat ca lenh
+/list        - Xem watchlist cua ban
+/help        - Xem tat ca lenh
 ```
 
 ## 9. Xem log
@@ -186,9 +199,14 @@ App luu du lieu tai `data/`:
 
 ```
 data/
+  price_history.db    # Lich su gia OHLCV hang ngay (SQLite, tu dong tao)
   volume_history.db   # KL giao dich hang ngay (SQLite, tu dong tao)
   watchlist.db        # Watchlist ca nhan (SQLite, tu dong tao)
+  alerts.db           # Canh bao gia muc tieu (SQLite, tu dong tao)
+  symbols_cache.json  # Cache danh sach ma (lam moi moi 24h)
+  charts/             # Bieu do nen PNG (tam thoi)
 ```
 
 > Du lieu SQLite se tu dong duoc tao khi app chay lan dau.
 > Phat hien dot bien KL can it nhat 3 ngay du lieu de tinh trung binh.
+> Phan tich ky thuat (RSI, MACD) can it nhat 14-35 phien du lieu.
