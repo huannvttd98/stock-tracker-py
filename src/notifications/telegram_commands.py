@@ -218,15 +218,181 @@ class TelegramCommandBot:
         vol = _format_volume(row["volume"])
         url = f"https://finance.vietstock.vn/{symbol}/tai-chinh.htm"
 
-        self._send(chat_id, (
-            f"<b>📈 {symbol}</b>\n\n"
-            f"Gia: <code>{row['close']:,.0f}</code> ({c_sign}{change:,.0f} | {sign}{pct:.2f}%)\n"
-            f"Mo: <code>{row['open']:,.0f}</code>\n"
-            f"Cao: <code>{row['high']:,.0f}</code> | Thap: <code>{row['low']:,.0f}</code>\n"
-            f"Tran: <code>{row['ceiling']:,.0f}</code> | San: <code>{row['floor']:,.0f}</code>\n"
-            f"KL: <b>{vol}</b>\n\n"
-            f"🔗 <a href=\"{url}\">Xem chi tiet</a>"
-        ))
+        # Price range position
+        day_range = row["high"] - row["low"]
+        if day_range > 0:
+            range_pos = (row["close"] - row["low"]) / day_range * 100
+        else:
+            range_pos = 50
+
+        # Ceiling/floor distance
+        ceil_dist = (row["ceiling"] - row["close"]) / row["close"] * 100 if row["close"] > 0 else 0
+        floor_dist = (row["close"] - row["floor"]) / row["close"] * 100 if row["close"] > 0 else 0
+
+        # Emoji for trend
+        if pct >= 3:
+            trend_emoji = "🟢🟢"
+        elif pct >= 0.5:
+            trend_emoji = "🟢"
+        elif pct <= -3:
+            trend_emoji = "🔴🔴"
+        elif pct <= -0.5:
+            trend_emoji = "🔴"
+        else:
+            trend_emoji = "⚪"
+
+        lines = [
+            f"<b>📈 {symbol}</b> {trend_emoji}\n",
+            f"<b>Gia:</b> <code>{row['close']:,.0f}</code> ({c_sign}{change:,.0f} | {sign}{pct:.2f}%)",
+            f"<b>Mo:</b> <code>{row['open']:,.0f}</code>",
+            f"<b>Cao:</b> <code>{row['high']:,.0f}</code> | <b>Thap:</b> <code>{row['low']:,.0f}</code>",
+            f"<b>Bien do:</b> <code>{day_range:,.0f}</code> ({range_pos:.0f}% tu thap)",
+            f"<b>Tran:</b> <code>{row['ceiling']:,.0f}</code> (+{ceil_dist:.1f}%) | <b>San:</b> <code>{row['floor']:,.0f}</code> (-{floor_dist:.1f}%)",
+            f"<b>KL:</b> <b>{vol}</b>",
+        ]
+
+        # Sector
+        from src.data.sector_map import get_sector_for_symbol
+        sector = get_sector_for_symbol(symbol)
+        if sector:
+            lines.append(f"<b>Nganh:</b> {sector}")
+
+        # Foreign flow from CafeF data
+        fb = row.get("foreign_buy", 0) or 0
+        fs = row.get("foreign_sell", 0) or 0
+        if fb or fs:
+            fn = fb - fs
+            fn_sign = "+" if fn >= 0 else ""
+            lines.append(
+                f"<b>🌐 Ngoai:</b> Mua <code>{_format_volume(fb)}</code>"
+                f" | Ban <code>{_format_volume(fs)}</code>"
+                f" | Rong <b>{fn_sign}{_format_volume(fn)}</b>"
+            )
+
+        # Technical analysis from history
+        from src.data.price_history import get_price_history
+        from src.analysis.technical import (
+            calc_rsi, calc_macd, get_ma_position, calc_bollinger,
+            calc_support_resistance, calc_ma_multi, classify_trend,
+        )
+
+        hist = get_price_history(symbol, days=40)
+        if not hist.empty and len(hist) >= 15:
+            closes = hist["close"].tolist()
+
+            rsi = calc_rsi(closes)
+            ma_pos = get_ma_position(closes)
+            macd = calc_macd(closes)
+            bb = calc_bollinger(closes)
+
+            lines.append("\n<b>📊 Ky thuat</b>")
+
+            if rsi is not None:
+                if rsi >= 70:
+                    rsi_tag = "⚠️ Qua mua"
+                elif rsi <= 30:
+                    rsi_tag = "💡 Qua ban"
+                elif rsi >= 60:
+                    rsi_tag = "Manh"
+                elif rsi <= 40:
+                    rsi_tag = "Yeu"
+                else:
+                    rsi_tag = "Trung tinh"
+                lines.append(f"  RSI(14): <b>{rsi:.1f}</b> - {rsi_tag}")
+
+            if ma_pos == "ABOVE":
+                lines.append("  MA: MA5 > MA20 (xu huong tang)")
+            elif ma_pos == "BELOW":
+                lines.append("  MA: MA5 < MA20 (xu huong giam)")
+
+            if macd:
+                if macd["crossover"] == "BULLISH":
+                    lines.append("  MACD: 🟢 Bullish Cross")
+                elif macd["crossover"] == "BEARISH":
+                    lines.append("  MACD: 🔴 Bearish Cross")
+                else:
+                    hist_val = macd["histogram"]
+                    h_sign = "+" if hist_val >= 0 else ""
+                    lines.append(f"  MACD: {h_sign}{hist_val:.0f}")
+
+            if bb:
+                pos = bb["position"]
+                if pos >= 1.0:
+                    lines.append("  BB: ⚠️ Tren bang tren")
+                elif pos <= 0.0:
+                    lines.append("  BB: 💡 Duoi bang duoi")
+                else:
+                    lines.append(f"  BB: {pos:.0%} (0%=day, 100%=dinh)")
+
+            # 5-day trend summary
+            if len(hist) >= 5:
+                last5 = hist.tail(5)
+                first_c = last5.iloc[0]["close"]
+                last_c = last5.iloc[-1]["close"]
+                if first_c > 0:
+                    trend_5d = (last_c - first_c) / first_c * 100
+                    t_sign = "+" if trend_5d >= 0 else ""
+                    lines.append(f"  5 phien: {t_sign}{trend_5d:.2f}%")
+
+            # Trend classification
+            trend_cls = classify_trend(closes)
+            if trend_cls:
+                trend_map = {
+                    "TANG MANH": "🟢🟢 Tang manh",
+                    "TANG": "🟢 Tang",
+                    "DI NGANG": "⚪ Di ngang",
+                    "GIAM": "🔴 Giam",
+                    "GIAM MANH": "🔴🔴 Giam manh",
+                }
+                lines.append(f"  <b>Xu huong:</b> {trend_map.get(trend_cls, trend_cls)}")
+
+            # MA multi
+            ma_multi = calc_ma_multi(closes)
+            if ma_multi:
+                ma_parts = []
+                for k in ["ma20", "ma50"]:
+                    if k in ma_multi:
+                        ma_parts.append(f"{k.upper()}: <code>{ma_multi[k]:,.0f}</code>")
+                if ma_parts:
+                    lines.append(f"  {' | '.join(ma_parts)}")
+
+            # Support / Resistance
+            sr = calc_support_resistance(closes)
+            if sr:
+                lines.append(
+                    f"  Ho tro: <code>{sr['support']:,.0f}</code>"
+                    f" | Khang cu: <code>{sr['resistance']:,.0f}</code>"
+                )
+
+        # Fundamental data
+        try:
+            from src.data.fundamental import get_fundamental
+            fund = get_fundamental(symbol, row["close"])
+            has_fund = any(fund.get(k) for k in ("pe", "pb", "eps", "roe"))
+            if has_fund:
+                lines.append("\n<b>📋 Co ban</b>")
+                fund_parts = []
+                if fund["pe"]:
+                    fund_parts.append(f"P/E: <b>{fund['pe']:.1f}</b>")
+                if fund["pb"]:
+                    fund_parts.append(f"P/B: <b>{fund['pb']:.2f}</b>")
+                if fund_parts:
+                    lines.append(f"  {' | '.join(fund_parts)}")
+                if fund["eps"]:
+                    lines.append(f"  EPS: <code>{fund['eps']:,.0f}</code>")
+                if fund["bvps"]:
+                    lines.append(f"  BVPS: <code>{fund['bvps']:,.0f}</code>")
+                if fund["roe"]:
+                    lines.append(f"  ROE: <b>{fund['roe']:.1f}%</b>")
+                company = fund.get("company", {})
+                if company.get("name"):
+                    lines.append(f"  {company['name']}")
+        except Exception:
+            pass
+
+        lines.append(f"\n🔗 <a href=\"{url}\">Xem chi tiet</a>")
+
+        self._send(chat_id, "\n".join(lines))
 
     def _cmd_tran(self, chat_id):
         df = self._fetch_data()

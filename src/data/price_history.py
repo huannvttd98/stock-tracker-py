@@ -97,3 +97,17 @@ def get_avg_volumes(days: int = 20) -> dict:
     result = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
     return result
+
+
+def get_tracking_stats() -> dict:
+    """Return tracking statistics: total sessions (days), first date, total symbols."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT date), MIN(date), COUNT(DISTINCT symbol) FROM daily_price"
+    ).fetchone()
+    conn.close()
+    return {
+        "total_sessions": row[0] or 0,
+        "first_date": row[1] or "",
+        "total_symbols": row[2] or 0,
+    }

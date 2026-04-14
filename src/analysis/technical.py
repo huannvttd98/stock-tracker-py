@@ -301,3 +301,90 @@ def analyze_symbol(closes: list) :
         "score": score,
         "signals": signals,
     }
+
+
+# === Support / Resistance ===
+def calc_support_resistance(closes: list, period: int = 20):
+    """
+    Find nearest support and resistance levels from recent highs/lows.
+    Returns {support, resistance} or None.
+    """
+    if len(closes) < period:
+        return None
+
+    window = closes[-period:]
+    current = closes[-1]
+
+    # Find local minima (support) and maxima (resistance)
+    supports = []
+    resistances = []
+
+    for i in range(1, len(window) - 1):
+        if window[i] <= window[i - 1] and window[i] <= window[i + 1]:
+            supports.append(window[i])
+        if window[i] >= window[i - 1] and window[i] >= window[i + 1]:
+            resistances.append(window[i])
+
+    # Nearest support below current price
+    support = None
+    below = [s for s in supports if s < current]
+    if below:
+        support = max(below)
+
+    # Nearest resistance above current price
+    resistance = None
+    above = [r for r in resistances if r > current]
+    if above:
+        resistance = min(above)
+
+    # Fallback: use period min/max
+    if support is None:
+        support = min(window)
+    if resistance is None:
+        resistance = max(window)
+
+    return {
+        "support": round(support, 0),
+        "resistance": round(resistance, 0),
+    }
+
+
+def calc_ma_multi(closes: list):
+    """Calculate MA5, MA10, MA20, MA50. Returns dict or None."""
+    result = {}
+    for period in [5, 10, 20, 50]:
+        val = calc_sma(closes, period)
+        if val is not None:
+            result[f"ma{period}"] = round(val, 0)
+    return result if result else None
+
+
+def classify_trend(closes: list):
+    """
+    Classify trend based on MA alignment.
+    Returns: 'TANG MANH', 'TANG', 'DI NGANG', 'GIAM', 'GIAM MANH'
+    """
+    if len(closes) < 50:
+        if len(closes) < 20:
+            return None
+        ma5 = calc_sma(closes, 5)
+        ma20 = calc_sma(closes, 20)
+        if ma5 > ma20:
+            return "TANG"
+        elif ma5 < ma20:
+            return "GIAM"
+        return "DI NGANG"
+
+    ma5 = calc_sma(closes, 5)
+    ma20 = calc_sma(closes, 20)
+    ma50 = calc_sma(closes, 50)
+
+    if ma5 > ma20 > ma50:
+        return "TANG MANH"
+    elif ma5 > ma20:
+        return "TANG"
+    elif ma5 < ma20 < ma50:
+        return "GIAM MANH"
+    elif ma5 < ma20:
+        return "GIAM"
+    return "DI NGANG"

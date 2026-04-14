@@ -5,7 +5,7 @@ from src.analysis.ceiling_floor import detect_ceiling_floor
 from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
 from src.data.volume_history import detect_volume_spikes
 from src.analysis.technical import analyze_symbol
-from src.data.price_history import get_all_close_prices
+from src.data.price_history import get_all_close_prices, get_tracking_stats
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -35,28 +35,44 @@ def generate_daily_report(df: pd.DataFrame) -> list:
     # Volume spikes
     spikes = detect_volume_spikes(df.copy())
 
+    # Tracking stats
+    stats = get_tracking_stats()
+
     lines = [
         f"<b>📊 BAO CAO CUOI NGAY</b>",
         f"<i>🕐 {now}</i>\n",
         f"Tong: <b>{total}</b> ma | "
-        f"🟢 Tang: <b>{up}</b> | 🔴 Giam: <b>{down}</b> | ⚪ Dung: <b>{flat}</b>\n",
+        f"🟢 Tang: <b>{up}</b> | 🔴 Giam: <b>{down}</b> | ⚪ Dung: <b>{flat}</b>",
+        f"📅 Da theo doi: <b>{stats['total_sessions']}</b> phien"
+        f" | Tu: <b>{stats['first_date']}</b>"
+        f" | <b>{stats['total_symbols']}</b> ma\n",
         "━━━━━━━━━━━━━━━━━━━━━━━━",
     ]
 
     # Top tang
     lines.append("\n<b>🚀 TOP TANG</b>")
     for _, row in top_up.iterrows():
+        sym = row.get("symbol", "")
+        if not sym or str(sym) == "nan":
+            continue
+        change = row["close"] - row["open"]
         lines.append(
-            f"  <b>{row['symbol']}</b> +{row['profit_pct']:.2f}% "
-            f"| <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}"
+            f"  <b>{sym}</b> +{row['profit_pct']:.2f}% "
+            f"| <code>{row['close']:,.0f}</code> (<code>+{change:,.0f}</code>) "
+            f"| KL: {_format_volume(row['volume'])}"
         )
 
     # Top giam
     lines.append("\n<b>📉 TOP GIAM</b>")
     for _, row in top_down.iterrows():
+        sym = row.get("symbol", "")
+        if not sym or str(sym) == "nan":
+            continue
+        change = row["close"] - row["open"]
         lines.append(
-            f"  <b>{row['symbol']}</b> {row['profit_pct']:.2f}% "
-            f"| <code>{row['close']:,.0f}</code> | KL: {_format_volume(row['volume'])}"
+            f"  <b>{sym}</b> {row['profit_pct']:.2f}% "
+            f"| <code>{row['close']:,.0f}</code> (<code>{change:,.0f}</code>) "
+            f"| KL: {_format_volume(row['volume'])}"
         )
 
     # Top KL

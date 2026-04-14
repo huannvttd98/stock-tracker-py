@@ -11,6 +11,7 @@ CAFEF_URL = "https://banggia.cafef.vn/stockhandler.ashx"
 # a=symbol, b=ref(open), c=ceiling, d=floor
 # e=close(last matched), v=high, w=low
 # k=change, totalvolume=total volume
+# x=foreign buy volume, y=foreign sell volume
 FIELD_MAP = {
     "a": "symbol",
     "b": "open",
@@ -21,6 +22,8 @@ FIELD_MAP = {
     "w": "low",
     "k": "change",
     "totalvolume": "volume",
+    "x": "foreign_buy",
+    "y": "foreign_sell",
 }
 
 
