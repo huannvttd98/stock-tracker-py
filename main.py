@@ -98,6 +98,30 @@ def run_tracking_cycle():
                 n = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, cid)
                 n.send_message(text, disable_preview=True)
 
+    # 8. Price alerts
+    from src.data.price_alert import get_all_active_alerts, deactivate_alert
+    alerts = get_all_active_alerts()
+    for alert in alerts:
+        match = price_df[price_df["symbol"] == alert["symbol"]]
+        if match.empty:
+            continue
+        current_price = match.iloc[0]["close"]
+        triggered = False
+        if alert["direction"] == ">" and current_price >= alert["target_price"]:
+            triggered = True
+        elif alert["direction"] == "<" and current_price <= alert["target_price"]:
+            triggered = True
+        if triggered:
+            arrow = "tang len" if alert["direction"] == ">" else "giam xuong"
+            text = (
+                f"<b>🚨 CANH BAO GIA!</b>\n"
+                f"<b>{alert['symbol']}</b> da {arrow} <code>{current_price:,.0f}</code>\n"
+                f"Muc dat: {alert['direction']} <code>{alert['target_price']:,.0f}</code>"
+            )
+            n = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, alert["chat_id"])
+            n.send_message(text, disable_preview=True)
+            deactivate_alert(alert["id"])
+
     logger.info(f"=== Cycle complete ===")
 
 

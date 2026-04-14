@@ -39,6 +39,22 @@ class TelegramCommandBot:
         except Exception as e:
             logger.error(f"Send error: {e}")
 
+    def _send_photo(self, chat_id, photo_bytes: bytes, caption: str = ""):
+        try:
+            files = {"photo": ("chart.png", photo_bytes, "image/png")}
+            data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+            requests.post(self._url("sendPhoto"), data=data, files=files, timeout=15)
+        except Exception as e:
+            logger.error(f"Send photo error: {e}")
+
+    def _send_document(self, chat_id, doc_bytes: bytes, filename: str, caption: str = ""):
+        try:
+            files = {"document": (filename, doc_bytes)}
+            data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+            requests.post(self._url("sendDocument"), data=data, files=files, timeout=15)
+        except Exception as e:
+            logger.error(f"Send document error: {e}")
+
     def _get_updates(self) -> list:
         try:
             resp = requests.get(
@@ -79,6 +95,18 @@ class TelegramCommandBot:
             self._cmd_phantich(chat_id, args)
         elif cmd == "/hocpt":
             self._cmd_hocpt(chat_id)
+        elif cmd == "/report":
+            self._cmd_report(chat_id)
+        elif cmd == "/alert":
+            self._cmd_alert(chat_id, args)
+        elif cmd == "/ls":
+            self._cmd_lichsu(chat_id, args)
+        elif cmd == "/ss":
+            self._cmd_sosanh(chat_id, args)
+        elif cmd == "/nganh":
+            self._cmd_nganh(chat_id, args)
+        elif cmd == "/export":
+            self._cmd_export(chat_id)
         elif cmd == "/watch":
             self._cmd_watch(chat_id, args)
         elif cmd == "/unwatch":
@@ -94,7 +122,13 @@ class TelegramCommandBot:
             "/tran - Cac ma dang cham tran\n"
             "/san - Cac ma dang cham san\n"
             "/goiy - Goi y ma nen theo doi\n"
-            "/pt <b>MA</b> - Phan tich ky thuat (VD: /pt VNM)\n"
+            "/pt <b>MA</b> - Phan tich ky thuat + bieu do (VD: /pt VNM)\n"
+            "/ls <b>MA</b> - Lich su gia 10 phien (VD: /ls VNM)\n"
+            "/ss <b>MA1 MA2 ...</b> - So sanh nhieu ma (VD: /ss VNM VIC HPG)\n"
+            "/alert <b>MA &gt;GIA</b> - Canh bao gia (VD: /alert VNM &gt;50000)\n"
+            "/nganh - Bao cao theo nganh\n"
+            "/report - Bao cao tong hop thi truong\n"
+            "/export - Xuat du lieu CSV\n"
             "/hocpt - Giai thich cach phan tich ky thuat\n"
             "/watch <b>MA</b> - Them ma vao watchlist\n"
             "/unwatch <b>MA</b> - Bo ma khoi watchlist\n"
@@ -231,7 +265,7 @@ class TelegramCommandBot:
         symbol = args[0].upper()
 
         from src.data.price_history import get_price_history
-        from src.analysis.technical import calc_rsi, detect_ma_crossover, get_ma_position, calc_bollinger, interpret_rsi, interpret_bollinger
+        from src.analysis.technical import calc_rsi, detect_ma_crossover, get_ma_position, calc_bollinger, interpret_rsi, interpret_bollinger, calc_macd, interpret_macd
 
         hist = get_price_history(symbol, days=30)
         if hist.empty or len(hist) < 5:
@@ -275,6 +309,16 @@ class TelegramCommandBot:
         else:
             bb_text = "Chua du du lieu (20 phien)"
 
+        # MACD
+        macd_data = calc_macd(closes)
+        if macd_data:
+            macd_text = (
+                f"MACD: <b>{macd_data['macd']}</b> | Signal: <b>{macd_data['signal']}</b>\n"
+                f"   Histogram: <b>{macd_data['histogram']}</b> - {interpret_macd(macd_data)}"
+            )
+        else:
+            macd_text = "Chua du du lieu (35 phien)"
+
         # Overall
         score_total = 0
         if rsi and rsi <= 30: score_total += 2
@@ -283,6 +327,8 @@ class TelegramCommandBot:
         elif crossover == "DEATH_CROSS": score_total -= 3
         if bb and bb["position"] <= 0.2: score_total += 1
         elif bb and bb["position"] >= 0.8: score_total -= 1
+        if macd_data and macd_data["crossover"] == "BULLISH": score_total += 2
+        elif macd_data and macd_data["crossover"] == "BEARISH": score_total -= 2
 
         if score_total >= 3:
             verdict = "🟢 <b>TICH CUC</b> - Nhieu tin hieu mua"
@@ -303,9 +349,31 @@ class TelegramCommandBot:
             f"<b>RSI</b>\n   {rsi_text}\n\n"
             f"<b>MA Crossover</b>\n   {ma_text}\n\n"
             f"<b>Bollinger Bands</b>\n   {bb_text}\n\n"
+            f"<b>MACD</b>\n   {macd_text}\n\n"
             f"<b>Tong hop:</b> {verdict}\n\n"
             f"🔗 <a href=\"{url}\">Xem chi tiet {symbol}</a>"
         ))
+
+        # Send candlestick chart
+        from src.charting.chart_generator import generate_candlestick
+        chart_bytes = generate_candlestick(symbol, hist)
+        if chart_bytes:
+            self._send_photo(chat_id, chart_bytes, f"📈 {symbol} - {len(hist)} phien")
+
+    def _cmd_report(self, chat_id):
+        from src.analysis.daily_report import generate_daily_report
+        from src.data.price_history import save_daily_prices
+
+        self._send(chat_id, "⏳ Dang tao bao cao, vui long cho...")
+
+        df = self._fetch_data()
+        if df is None:
+            return self._send(chat_id, "Khong lay duoc du lieu.")
+
+        save_daily_prices(df)
+        messages = generate_daily_report(df)
+        for msg in messages:
+            self._send(chat_id, msg)
 
     def _cmd_goiy(self, chat_id):
         from src.analysis.stock_suggestion import suggest_stocks, format_suggestions
@@ -341,6 +409,208 @@ class TelegramCommandBot:
         if not symbols:
             return self._send(chat_id, "Watchlist trong. Dung /watch <b>MA</b> de them.")
         self._send(chat_id, f"<b>📋 WATCHLIST ({len(symbols)} ma)</b>\n\n" + ", ".join(symbols))
+
+    # === NEW: /alert ===
+    def _cmd_alert(self, chat_id, args):
+        import re
+        from src.data.price_alert import add_alert, get_alerts
+
+        # /alert without args: show current alerts
+        if not args:
+            alerts = get_alerts(str(chat_id))
+            if not alerts:
+                return self._send(chat_id,
+                    "Chua co canh bao nao.\n\n"
+                    "Dung: /alert <b>MA &gt;GIA</b> hoac /alert <b>MA &lt;GIA</b>\n"
+                    "VD: /alert VNM &gt;50000\n"
+                    "VD: /alert HPG &lt;20000"
+                )
+            lines = [f"<b>🔔 CANH BAO GIA ({len(alerts)})</b>\n"]
+            for a in alerts:
+                lines.append(f"#{a['id']} <b>{a['symbol']}</b> {a['direction']} <code>{a['target_price']:,.0f}</code>")
+            self._send(chat_id, "\n".join(lines))
+            return
+
+        raw = " ".join(args)
+        match = re.match(r"([A-Za-z]+)\s*([><])\s*([\d,.]+)", raw)
+        if not match:
+            return self._send(chat_id,
+                "Sai cu phap.\n\n"
+                "Dung: /alert <b>MA &gt;GIA</b> hoac /alert <b>MA &lt;GIA</b>\n"
+                "VD: /alert VNM &gt;50000"
+            )
+
+        symbol = match.group(1).upper()
+        direction = match.group(2)
+        price = float(match.group(3).replace(",", ""))
+
+        alert_id = add_alert(str(chat_id), symbol, direction, price)
+        arrow = "tang len" if direction == ">" else "giam xuong"
+        self._send(chat_id,
+            f"✅ Da dat canh bao #{alert_id}:\n"
+            f"<b>{symbol}</b> khi gia {arrow} <code>{price:,.0f}</code>"
+        )
+
+    # === NEW: /ls ===
+    def _cmd_lichsu(self, chat_id, args):
+        if not args:
+            return self._send(chat_id, "Dung: /ls <b>MA</b>\nVD: /ls VNM")
+
+        symbol = args[0].upper()
+        days = int(args[1]) if len(args) > 1 and args[1].isdigit() else 10
+
+        from src.data.price_history import get_price_history
+        hist = get_price_history(symbol, days=days + 5)
+        if hist.empty:
+            return self._send(chat_id, f"Chua co du lieu lich su cho <b>{symbol}</b>.")
+
+        hist = hist.tail(days)
+        lines = [f"<b>📜 LICH SU: {symbol} ({len(hist)} phien)</b>\n"]
+        lines.append("<code>Ngay       | Dong      | +/-  %</code>")
+        lines.append("<code>———————————|———————————|————————</code>")
+
+        prev_close = None
+        for _, row in hist.iterrows():
+            date_str = row["date"][-5:]  # MM-DD
+            close = row["close"]
+            if prev_close and prev_close > 0:
+                pct = (close - prev_close) / prev_close * 100
+                sign = "+" if pct >= 0 else ""
+                pct_str = f"{sign}{pct:.1f}%"
+            else:
+                pct_str = "  —"
+            lines.append(f"<code>{date_str}      | {close:>9,.0f} | {pct_str:>6}</code>")
+            prev_close = close
+
+        self._send(chat_id, "\n".join(lines))
+
+        # Send chart
+        from src.charting.chart_generator import generate_candlestick
+        chart_bytes = generate_candlestick(symbol, hist)
+        if chart_bytes:
+            self._send_photo(chat_id, chart_bytes, f"📈 {symbol} - {len(hist)} phien")
+
+    # === NEW: /ss ===
+    def _cmd_sosanh(self, chat_id, args):
+        if len(args) < 2:
+            return self._send(chat_id, "Dung: /ss <b>MA1 MA2 ...</b>\nVD: /ss VNM VIC HPG")
+
+        symbols = [a.upper() for a in args[:5]]  # Max 5
+
+        df = self._fetch_data()
+        if df is None:
+            return self._send(chat_id, "Khong lay duoc du lieu.")
+
+        from src.data.price_history import get_price_history
+        from src.analysis.technical import calc_rsi
+
+        lines = [f"<b>📊 SO SANH: {' vs '.join(symbols)}</b>\n"]
+        lines.append("<code>Ma    | Gia       | +/-%    | KL       | RSI</code>")
+        lines.append("<code>——————|———————————|—————————|——————————|————</code>")
+
+        for sym in symbols:
+            match = df[df["symbol"] == sym]
+            if match.empty:
+                lines.append(f"<code>{sym:<5} | Khong tim thay</code>")
+                continue
+
+            row = match.iloc[0]
+            pct = row.get("profit_pct", 0)
+            sign = "+" if pct >= 0 else ""
+            vol = _format_volume(row["volume"])
+
+            hist = get_price_history(sym, days=30)
+            rsi_val = "—"
+            if not hist.empty and len(hist) >= 15:
+                rsi = calc_rsi(hist["close"].tolist())
+                if rsi is not None:
+                    rsi_val = f"{rsi:.0f}"
+
+            lines.append(
+                f"<code>{sym:<5} | {row['close']:>9,.0f} | {sign}{pct:>5.2f}%  | {vol:>8} | {rsi_val:>3}</code>"
+            )
+
+        self._send(chat_id, "\n".join(lines))
+
+    # === NEW: /nganh ===
+    def _cmd_nganh(self, chat_id, args):
+        from src.data.sector_map import SECTORS, get_sector_for_symbol
+
+        df = self._fetch_data()
+        if df is None:
+            return self._send(chat_id, "Khong lay duoc du lieu.")
+
+        # If specific sector requested
+        if args:
+            keyword = " ".join(args).lower()
+            matched_sector = None
+            for sname in SECTORS:
+                if keyword in sname.lower():
+                    matched_sector = sname
+                    break
+            if not matched_sector:
+                sector_list = "\n".join(f"• {s}" for s in SECTORS.keys())
+                return self._send(chat_id, f"Khong tim thay nganh '{keyword}'.\n\n<b>Cac nganh:</b>\n{sector_list}")
+
+            sector_symbols = SECTORS[matched_sector]
+            sector_df = df[df["symbol"].isin(sector_symbols)]
+            if sector_df.empty:
+                return self._send(chat_id, f"Khong co du lieu cho nganh <b>{matched_sector}</b>.")
+
+            avg_pct = sector_df["profit_pct"].mean()
+            sign = "+" if avg_pct >= 0 else ""
+            lines = [f"<b>🏢 {matched_sector}</b> (TB: {sign}{avg_pct:.2f}%)\n"]
+            for _, row in sector_df.sort_values("profit_pct", ascending=False).iterrows():
+                s = "+" if row["profit_pct"] >= 0 else ""
+                vol = _format_volume(row["volume"])
+                lines.append(f"<b>{row['symbol']}</b> {s}{row['profit_pct']:.2f}% | <code>{row['close']:,.0f}</code> | KL: {vol}")
+            self._send(chat_id, "\n".join(lines))
+            return
+
+        # Overview of all sectors
+        sector_stats = []
+        for sname, syms in SECTORS.items():
+            sector_df = df[df["symbol"].isin(syms)]
+            if sector_df.empty:
+                continue
+            avg_pct = sector_df["profit_pct"].mean()
+            up = len(sector_df[sector_df["profit_pct"] > 0])
+            down = len(sector_df[sector_df["profit_pct"] < 0])
+            total = len(sector_df)
+            sector_stats.append((sname, avg_pct, up, down, total))
+
+        sector_stats.sort(key=lambda x: x[1], reverse=True)
+
+        lines = ["<b>🏢 BAO CAO NGANH</b>\n"]
+        for sname, avg_pct, up, down, total in sector_stats:
+            sign = "+" if avg_pct >= 0 else ""
+            emoji = "🟢" if avg_pct > 0.5 else "🔴" if avg_pct < -0.5 else "⚪"
+            lines.append(f"{emoji} <b>{sname}</b>: {sign}{avg_pct:.2f}% ({up}↑ {down}↓ / {total})")
+
+        self._send(chat_id, "\n".join(lines))
+
+    # === NEW: /export ===
+    def _cmd_export(self, chat_id):
+        import io
+        from datetime import datetime
+
+        self._send(chat_id, "⏳ Dang xuat du lieu...")
+
+        df = self._fetch_data()
+        if df is None:
+            return self._send(chat_id, "Khong lay duoc du lieu.")
+
+        export_df = df[["symbol", "open", "close", "high", "low", "ceiling", "floor", "volume", "profit_pct"]].copy()
+        export_df = export_df.sort_values("profit_pct", ascending=False)
+        export_df.columns = ["Ma", "Mo", "Dong", "Cao", "Thap", "Tran", "San", "KL", "% Loi nhuan"]
+
+        buf = io.BytesIO()
+        export_df.to_csv(buf, index=False, encoding="utf-8-sig")
+        buf.seek(0)
+
+        today = datetime.now().strftime("%Y%m%d")
+        filename = f"stock_data_{today}.csv"
+        self._send_document(chat_id, buf.read(), filename, f"📊 Du lieu {len(export_df)} ma - {today}")
 
     def _fetch_data(self):
         try:

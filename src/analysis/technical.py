@@ -148,6 +148,75 @@ def interpret_bollinger(bb) -> str:
     return "Trong bang"
 
 
+# === MACD ===
+def calc_ema(closes: list, period: int) -> list:
+    """Calculate Exponential Moving Average. Returns list same length as closes."""
+    if len(closes) < period:
+        return []
+    multiplier = 2 / (period + 1)
+    ema = [sum(closes[:period]) / period]
+    for price in closes[period:]:
+        ema.append((price - ema[-1]) * multiplier + ema[-1])
+    return ema
+
+
+def calc_macd(closes: list, fast: int = 12, slow: int = 26, signal: int = 9):
+    """
+    Calculate MACD(12,26,9).
+    Returns: {macd, signal, histogram, crossover} or None.
+    crossover: 'BULLISH' (MACD crosses above signal), 'BEARISH', or None.
+    """
+    if len(closes) < slow + signal:
+        return None
+
+    ema_fast = calc_ema(closes, fast)
+    ema_slow = calc_ema(closes, slow)
+
+    # Align: ema_fast starts at index fast-1, ema_slow starts at index slow-1
+    offset = slow - fast
+    macd_line = [f - s for f, s in zip(ema_fast[offset:], ema_slow)]
+
+    if len(macd_line) < signal:
+        return None
+
+    signal_line = calc_ema(macd_line, signal)
+    # Align macd_line with signal_line
+    macd_now = macd_line[-1]
+    signal_now = signal_line[-1]
+    histogram = macd_now - signal_now
+
+    # Crossover detection
+    crossover = None
+    if len(macd_line) >= 2 and len(signal_line) >= 2:
+        macd_prev = macd_line[-2]
+        signal_prev = signal_line[-2]
+        if macd_prev <= signal_prev and macd_now > signal_now:
+            crossover = "BULLISH"
+        elif macd_prev >= signal_prev and macd_now < signal_now:
+            crossover = "BEARISH"
+
+    return {
+        "macd": round(macd_now, 2),
+        "signal": round(signal_now, 2),
+        "histogram": round(histogram, 2),
+        "crossover": crossover,
+    }
+
+
+def interpret_macd(macd_data) -> str:
+    if macd_data is None:
+        return ""
+    if macd_data["crossover"] == "BULLISH":
+        return "MACD cat len Signal (MUA)"
+    if macd_data["crossover"] == "BEARISH":
+        return "MACD cat xuong Signal (BAN)"
+    if macd_data["histogram"] > 0:
+        return "MACD > Signal (xu huong tang)"
+    if macd_data["histogram"] < 0:
+        return "MACD < Signal (xu huong giam)"
+    return "Trung tinh"
+
+
 # === Full Analysis ===
 def analyze_symbol(closes: list) :
     """Run all indicators on a symbol. Returns analysis dict or None."""
@@ -158,6 +227,7 @@ def analyze_symbol(closes: list) :
     crossover = detect_ma_crossover(closes)
     ma_pos = get_ma_position(closes)
     bb = calc_bollinger(closes)
+    macd = calc_macd(closes)
 
     # Score: positive = bullish, negative = bearish
     score = 0
@@ -207,11 +277,27 @@ def analyze_symbol(closes: list) :
             score -= 1
             signals.append("Gan dinh BB")
 
+    # MACD
+    if macd:
+        if macd["crossover"] == "BULLISH":
+            score += 2
+            signals.append("MACD Bullish Cross")
+        elif macd["crossover"] == "BEARISH":
+            score -= 2
+            signals.append("MACD Bearish Cross")
+        elif macd["histogram"] > 0:
+            score += 1
+            signals.append("MACD > Signal")
+        elif macd["histogram"] < 0:
+            score -= 1
+            signals.append("MACD < Signal")
+
     return {
         "rsi": rsi,
         "crossover": crossover,
         "ma_position": ma_pos,
         "bollinger": bb,
+        "macd": macd,
         "score": score,
         "signals": signals,
     }
