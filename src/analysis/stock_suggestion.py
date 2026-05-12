@@ -1,3 +1,5 @@
+import html
+
 import pandas as pd
 
 from src.data.price_history import get_avg_volumes, get_all_close_prices
@@ -118,7 +120,7 @@ def format_suggestions(suggestions: pd.DataFrame) -> str:
         score = int(row["score"])
         pct = row["profit_pct"]
         vol = _format_volume(row["volume"])
-        signals = row["signals"]
+        signals = html.escape(str(row["signals"]))
         stars = "⭐" * min(score // 2, 5)
 
         sign = "+" if pct >= 0 else ""

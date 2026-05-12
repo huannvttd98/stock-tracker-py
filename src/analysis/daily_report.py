@@ -1,3 +1,5 @@
+import html
+
 import pandas as pd
 
 from src.analysis.profit_calculator import _format_volume
@@ -327,14 +329,14 @@ def _build_technical_section(df: pd.DataFrame) -> list:
         buy_signals.sort(key=lambda x: x[1]["score"], reverse=True)
         lines.append(f"\n<b>📈 TIN HIEU MUA ({len(buy_signals)} ma)</b>")
         for symbol, r in buy_signals[:10]:
-            signals = " | ".join(r["signals"])
+            signals = html.escape(" | ".join(r["signals"]))
             lines.append(f"  <b>{symbol}</b> ({signals})")
 
     if sell_signals:
         sell_signals.sort(key=lambda x: x[1]["score"])
         lines.append(f"\n<b>📉 TIN HIEU BAN ({len(sell_signals)} ma)</b>")
         for symbol, r in sell_signals[:10]:
-            signals = " | ".join(r["signals"])
+            signals = html.escape(" | ".join(r["signals"]))
             lines.append(f"  <b>{symbol}</b> ({signals})")
 
     return lines

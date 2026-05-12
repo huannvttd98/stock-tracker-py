@@ -211,9 +211,9 @@ def interpret_macd(macd_data) -> str:
     if macd_data["crossover"] == "BEARISH":
         return "MACD cat xuong Signal (BAN)"
     if macd_data["histogram"] > 0:
-        return "MACD > Signal (xu huong tang)"
+        return "MACD ↑ Signal (xu huong tang)"
     if macd_data["histogram"] < 0:
-        return "MACD < Signal (xu huong giam)"
+        return "MACD ↓ Signal (xu huong giam)"
     return "Trung tinh"
 
 
@@ -251,16 +251,16 @@ def analyze_symbol(closes: list) :
     # MA Crossover
     if crossover == "GOLDEN_CROSS":
         score += 3
-        signals.append("Golden Cross (MA5>MA20)")
+        signals.append("Golden Cross (MA5↑MA20)")
     elif crossover == "DEATH_CROSS":
         score -= 3
-        signals.append("Death Cross (MA5<MA20)")
+        signals.append("Death Cross (MA5↓MA20)")
     elif ma_pos == "ABOVE":
         score += 1
-        signals.append("MA5 > MA20")
+        signals.append("MA5 ↑ MA20")
     elif ma_pos == "BELOW":
         score -= 1
-        signals.append("MA5 < MA20")
+        signals.append("MA5 ↓ MA20")
 
     # Bollinger Bands
     if bb:
@@ -287,10 +287,10 @@ def analyze_symbol(closes: list) :
             signals.append("MACD Bearish Cross")
         elif macd["histogram"] > 0:
             score += 1
-            signals.append("MACD > Signal")
+            signals.append("MACD ↑ Signal")
         elif macd["histogram"] < 0:
             score -= 1
-            signals.append("MACD < Signal")
+            signals.append("MACD ↓ Signal")
 
     return {
         "rsi": rsi,

@@ -310,9 +310,9 @@ class TelegramCommandBot:
                 lines.append(f"  RSI(14): <b>{rsi:.1f}</b> - {rsi_tag}")
 
             if ma_pos == "ABOVE":
-                lines.append("  MA: MA5 > MA20 (xu huong tang)")
+                lines.append("  MA: MA5 ↑ MA20 (xu huong tang)")
             elif ma_pos == "BELOW":
-                lines.append("  MA: MA5 < MA20 (xu huong giam)")
+                lines.append("  MA: MA5 ↓ MA20 (xu huong giam)")
 
             if macd:
                 if macd["crossover"] == "BULLISH":
@@ -475,9 +475,9 @@ class TelegramCommandBot:
         elif crossover == "DEATH_CROSS":
             ma_lines.append("⬇️ <b>DEATH CROSS</b> (tin hieu ban)")
         elif ma_pos == "ABOVE":
-            ma_lines.append("MA5 > MA20 (xu huong tang)")
+            ma_lines.append("MA5 ↑ MA20 (xu huong tang)")
         elif ma_pos == "BELOW":
-            ma_lines.append("MA5 < MA20 (xu huong giam)")
+            ma_lines.append("MA5 ↓ MA20 (xu huong giam)")
         ma_text = "\n   ".join(ma_lines) if ma_lines else "Chua du du lieu (20 phien)"
 
         # Bollinger
