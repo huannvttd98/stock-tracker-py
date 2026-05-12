@@ -1,5 +1,6 @@
 import threading
 import time
+import traceback
 
 import requests
 
@@ -26,7 +27,7 @@ class TelegramCommandBot:
 
     def _send(self, chat_id, text: str):
         try:
-            requests.post(
+            resp = requests.post(
                 self._url("sendMessage"),
                 json={
                     "chat_id": chat_id,
@@ -36,8 +37,16 @@ class TelegramCommandBot:
                 },
                 timeout=10,
             )
+            if resp.status_code != 200:
+                logger.error(
+                    f"Telegram sendMessage failed: {resp.status_code} {resp.text} "
+                    f"(text_len={len(text)})"
+                )
+                return False
+            return True
         except Exception as e:
             logger.error(f"Send error: {e}")
+            return False
 
     def _send_photo(self, chat_id, photo_bytes: bytes, caption: str = ""):
         try:
@@ -538,14 +547,18 @@ class TelegramCommandBot:
 
         self._send(chat_id, "⏳ Dang tao bao cao, vui long cho...")
 
-        df = self._fetch_data()
-        if df is None:
-            return self._send(chat_id, "Khong lay duoc du lieu.")
+        try:
+            df = self._fetch_data()
+            if df is None:
+                return self._send(chat_id, "Khong lay duoc du lieu.")
 
-        save_daily_prices(df)
-        messages = generate_daily_report(df)
-        for msg in messages:
-            self._send(chat_id, msg)
+            save_daily_prices(df)
+            messages = generate_daily_report(df)
+            for msg in messages:
+                self._send(chat_id, msg)
+        except Exception as e:
+            logger.error(f"Report error:\n{traceback.format_exc()}")
+            self._send(chat_id, f"❌ Loi khi tao bao cao: {e}")
 
     def _cmd_goiy(self, chat_id):
         from src.analysis.stock_suggestion import suggest_stocks, format_suggestions

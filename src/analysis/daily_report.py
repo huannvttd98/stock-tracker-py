@@ -341,10 +341,22 @@ def _build_technical_section(df: pd.DataFrame) -> list:
 
 
 def _split_messages(lines: list) -> list:
+    # Flatten multi-line entries so a single embedded block can't overflow 4096
+    flat = []
+    for line in lines:
+        flat.extend(str(line).split("\n"))
+
     messages = []
     current = ""
-    for line in lines:
-        if len(current) + len(line) + 2 > 4096:
+    for line in flat:
+        # Hard-split pathologically long lines (shouldn't happen, but defensive)
+        while len(line) > 4096:
+            if current:
+                messages.append(current)
+                current = ""
+            messages.append(line[:4096])
+            line = line[4096:]
+        if len(current) + len(line) + 1 > 4096:
             messages.append(current)
             current = ""
         current += line + "\n"
